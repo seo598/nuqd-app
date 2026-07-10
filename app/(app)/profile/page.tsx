@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BadgeCheck, Bell, ChevronRight, Copy, CreditCard, Fingerprint, Gift, Globe,
@@ -41,6 +42,9 @@ export default function ProfileScreen() {
 
   const [picker, setPicker] = useState<null | "currency" | "language">(null);
   const [copied, setCopied] = useState(false);
+  const [rateOpen, setRateOpen] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   function copyCode() {
     navigator.clipboard?.writeText(REFERRAL_CODE).catch(() => {});
@@ -116,9 +120,9 @@ export default function ProfileScreen() {
 
       {/* Account */}
       <Group title="Account">
-        <RowLink icon={<UserRound size={18} />} label="Personal details" desc="Name, email, phone" />
-        <RowLink icon={<ShieldCheck size={18} />} label="Identity verification" desc="Verified" descAccent />
-        <RowLink icon={<CreditCard size={18} />} label="Payment methods" desc="Cards & bank accounts" />
+        <RowLink icon={<UserRound size={18} />} label="Personal details" desc="Name, email, phone" href="/settings/personal" />
+        <RowLink icon={<ShieldCheck size={18} />} label="Identity verification" desc="Verified" descAccent href="/settings/identity" />
+        <RowLink icon={<CreditCard size={18} />} label="Payment methods" desc="Cards & bank accounts" href="/settings/payment" />
       </Group>
 
       {/* Security */}
@@ -129,8 +133,8 @@ export default function ProfileScreen() {
           checked={settings.twoFactor} onChange={(v) => updateSettings({ twoFactor: v })} />
         <RowToggle icon={<KeyRound size={18} />} label="Transaction PIN" desc="Confirm each transfer"
           checked={settings.transactionPin} onChange={(v) => updateSettings({ transactionPin: v })} />
-        <RowLink icon={<Lock size={18} />} label="Change password" />
-        <RowLink icon={<Smartphone size={18} />} label="Connected devices" desc="2 active" />
+        <RowLink icon={<Lock size={18} />} label="Change password" href="/settings/password" />
+        <RowLink icon={<Smartphone size={18} />} label="Connected devices" desc="2 active" href="/settings/devices" />
       </Group>
 
       {/* Preferences */}
@@ -153,24 +157,27 @@ export default function ProfileScreen() {
 
       {/* Support */}
       <Group title="Support">
-        <RowLink icon={<LifeBuoy size={18} />} label="Help center" desc="Guides & FAQs" />
-        <RowLink icon={<Headphones size={18} />} label="Contact support" desc="24/7 live chat" />
-        <RowLink icon={<Share2 size={18} />} label="Community" desc="Join the NUQD community" />
-        <RowLink icon={<Star size={18} />} label="Rate the app" />
+        <RowLink icon={<LifeBuoy size={18} />} label="Help center" desc="Guides & FAQs" href="/settings/help" />
+        <RowLink icon={<Headphones size={18} />} label="Contact support" desc="24/7 live chat" href="/settings/support" />
+        <RowLink icon={<Share2 size={18} />} label="Community" desc="Join the NUQD community" href="/settings/community" />
+        <RowLink icon={<Star size={18} />} label="Rate the app" onClick={() => setRateOpen(true)} />
       </Group>
 
       {/* Legal */}
       <Group title="Legal">
-        <RowLink icon={<ScrollText size={18} />} label="Terms of service" />
-        <RowLink icon={<Lock size={18} />} label="Privacy policy" />
-        <RowLink icon={<ScrollText size={18} />} label="Licenses & disclosures" />
+        <RowLink icon={<ScrollText size={18} />} label="Terms of service" href="/legal/terms" />
+        <RowLink icon={<Lock size={18} />} label="Privacy policy" href="/legal/privacy" />
+        <RowLink icon={<ScrollText size={18} />} label="Licenses & disclosures" href="/legal/licenses" />
       </Group>
 
       <Button variant="secondary" fullWidth className="mt-6 text-neg"
         onClick={() => { signOut(); router.replace("/onboarding"); }}>
         <LogOut size={18} /> Sign out
       </Button>
-      <button className="mt-3 flex w-full items-center justify-center gap-1.5 text-sm font-semibold text-neg">
+      <button
+        onClick={() => setDeleteOpen(true)}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 text-sm font-semibold text-neg"
+      >
         <Trash2 size={15} /> Delete account
       </button>
       <p className="mt-4 text-center text-xs text-faint">NUQD · v1.0.0 · Made for the Gulf</p>
@@ -199,6 +206,47 @@ export default function ProfileScreen() {
             );
           })}
         </div>
+      </Sheet>
+
+      {/* Rate the app */}
+      <Sheet open={rateOpen} onClose={() => { setRateOpen(false); setRating(0); }} title="Rate NUQD">
+        <p className="text-sm text-muted">Enjoying the app? Let us know how we&apos;re doing.</p>
+        <div className="my-5 flex justify-center gap-2">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} onClick={() => setRating(n)} aria-label={`${n} stars`}>
+              <Star size={34} className={n <= rating ? "fill-accent text-accent" : "text-border"} />
+            </button>
+          ))}
+        </div>
+        <Button
+          fullWidth
+          size="lg"
+          disabled={rating === 0}
+          onClick={() => { setRateOpen(false); setRating(0); }}
+        >
+          {rating >= 4 ? "Rate on the App Store" : "Submit feedback"}
+        </Button>
+      </Sheet>
+
+      {/* Delete account */}
+      <Sheet open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete account">
+        <div className="flex flex-col items-center py-2 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-neg-soft text-neg">
+            <Trash2 size={26} />
+          </span>
+          <p className="mt-4 font-semibold">This is permanent</p>
+          <p className="mt-1 max-w-[280px] text-sm text-muted">
+            Deleting your account removes your profile and settings. Withdraw any balances first —
+            this can&apos;t be undone.
+          </p>
+        </div>
+        <Button variant="danger" fullWidth size="lg" className="mt-4"
+          onClick={() => { setDeleteOpen(false); signOut(); router.replace("/onboarding"); }}>
+          Delete my account
+        </Button>
+        <Button variant="secondary" fullWidth className="mt-2" onClick={() => setDeleteOpen(false)}>
+          Keep my account
+        </Button>
       </Sheet>
     </div>
   );
@@ -240,20 +288,24 @@ function RowToggle({
 }
 
 function RowLink({
-  icon, label, desc, descAccent,
+  icon, label, desc, descAccent, href, onClick,
 }: {
   icon: React.ReactNode; label: string; desc?: string; descAccent?: boolean;
+  href?: string; onClick?: () => void;
 }) {
-  return (
-    <button className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-surface-2">
+  const cls = "flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-surface-2";
+  const inner = (
+    <>
       <span className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-muted">{icon}</span>
       <div className="flex-1">
         <p className="font-medium">{label}</p>
         {desc && <p className={cn("text-xs", descAccent ? "text-pos" : "text-muted")}>{desc}</p>}
       </div>
       <ChevronRight size={18} className="text-faint" aria-hidden />
-    </button>
+    </>
   );
+  if (href) return <Link href={href} className={cls}>{inner}</Link>;
+  return <button onClick={onClick} className={cls}>{inner}</button>;
 }
 
 function RowValue({
