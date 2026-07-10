@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * ───────────────────────────────────────────────────────────────
+ * NUQD DESIGN TOKENS
+ * The single source of truth for color, elevation and radius.
+ * Light values live on :root, dark values on .dark — Tailwind maps
+ * every `bg-*`, `text-*`, `border-*` utility to these via var().
+ * ───────────────────────────────────────────────────────────────
+ */
+:root {
+  /* Surfaces & text — near-white bg, near-black text */
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --border: #e6e8ec;
+  --text: #0b0e14;
+  --muted: #5b6472;
+  --faint: #9aa2b1;
+
+  /* One vibrant accent — teal — for positive values, highlights, primary actions */
+  --accent: #10c7a5;
+  --accent-ink: #04231d; /* high-contrast label on top of accent */
+  --accent-soft: #e2f7f2;
+
+  /* Semantic price colors */
+  --pos: #0bb489;
+  --neg: #f0616b;
+  --neg-soft: #fdeaeb;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 12px 40px rgba(16, 24, 40, 0.18);
+
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0a0c10;
+  --surface: #14181f;
+  --surface-2: #1c212b;
+  --border: #262c37;
+  --text: #f4f6fa;
+  --muted: #9aa4b4;
+  --faint: #626c7d;
+
+  --accent: #16d6b2;
+  --accent-ink: #04231d;
+  --accent-soft: #0f2e2a;
+
+  --pos: #2fdca9;
+  --neg: #ff6b74;
+  --neg-soft: #2a1618;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 16px 50px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Respect users who ask for less motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+  /* Visible, consistent focus ring for keyboard users */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@layer components {
+  /* Numbers (balances, prices) use tabular figures so they don't jitter */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+  /* Skeleton shimmer block */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.14),
+      transparent
+    );
+    animation: shimmer 1.4s infinite;
+  }
+  .dark .skeleton::after {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.05),
+      transparent
+    );
+  }
+}
+
+/* Hide scrollbars inside the app frame while keeping scroll behavior */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
