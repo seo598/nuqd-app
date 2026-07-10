@@ -8,12 +8,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { CoinIcon } from "@/components/coin-icon";
 import { LiveWallet } from "@/components/live-wallet";
+import { BtcWallet } from "@/components/btc-wallet";
+import { Segmented } from "@/components/ui/segmented";
 import { useAsync } from "@/lib/use-async";
-import { getBtcNetwork, getEthAccount, getEthNetwork, isValidEthAddress, type EthAccount } from "@/lib/blockchain";
+import {
+  getBtcAddress, getBtcNetwork, getEthAccount, getEthNetwork,
+  isValidBtcAddress, isValidEthAddress, type BtcAccount, type EthAccount,
+} from "@/lib/blockchain";
 import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 const DEMO_ADDR = "0xde0B295669a9FD93d5F28D9Ec85E40f4cB697BAe"; // Ethereum Foundation
+const BTC_DEMO_ADDR = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"; // Bitcoin genesis address
 
 export default function OnChain() {
   const eth = useAsync(getEthNetwork, []);
@@ -32,16 +38,24 @@ export default function OnChain() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Address explorer — Ethereum or Bitcoin.
+  const [explChain, setExplChain] = useState<"ETH" | "BTC">("ETH");
   const [address, setAddress] = useState(DEMO_ADDR);
   const [account, setAccount] = useState<EthAccount | null>(null);
+  const [btcAcct, setBtcAcct] = useState<BtcAccount | null>(null);
   const [looking, setLooking] = useState(false);
   const [lookErr, setLookErr] = useState<string | null>(null);
 
+  const validAddr = explChain === "ETH" ? isValidEthAddress(address) : isValidBtcAddress(address);
+
   async function lookup(addr: string) {
-    setLooking(true); setLookErr(null);
-    try { setAccount(await getEthAccount(addr)); }
-    catch (e) { setLookErr(e instanceof Error ? e.message : "Lookup failed"); setAccount(null); }
-    finally { setLooking(false); }
+    setLooking(true); setLookErr(null); setAccount(null); setBtcAcct(null);
+    try {
+      if (explChain === "ETH") setAccount(await getEthAccount(addr));
+      else setBtcAcct(await getBtcAddress(addr));
+    } catch (e) {
+      setLookErr(e instanceof Error ? e.message : "Lookup failed");
+    } finally { setLooking(false); }
   }
 
   return (
@@ -91,24 +105,36 @@ export default function OnChain() {
           />
         </div>
 
-        {/* Real wallet — connect, receive, send */}
-        <h2 className="mb-2 mt-6 text-lg font-bold">Your wallet</h2>
-        <LiveWallet />
+        {/* Real wallets — connect, receive, send */}
+        <h2 className="mb-2 mt-6 text-lg font-bold">Your wallets</h2>
+        <div className="space-y-3">
+          <LiveWallet />
+          <BtcWallet />
+        </div>
 
-        {/* Address explorer */}
-        <h2 className="mb-2 mt-6 text-lg font-bold">Address explorer</h2>
+        {/* Address explorer — Ethereum or Bitcoin */}
+        <div className="mb-2 mt-6 flex items-center justify-between">
+          <h2 className="text-lg font-bold">Address explorer</h2>
+          <Segmented
+            options={["ETH", "BTC"] as const}
+            value={explChain}
+            onChange={(c) => { setExplChain(c); setAddress(c === "ETH" ? DEMO_ADDR : BTC_DEMO_ADDR); setAccount(null); setBtcAcct(null); setLookErr(null); }}
+            ariaLabel="Explorer chain"
+            size="sm"
+          />
+        </div>
         <div className="flex gap-2">
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="0x… Ethereum address"
-            aria-label="Ethereum address"
+            placeholder={explChain === "ETH" ? "0x… Ethereum address" : "bc1… Bitcoin address"}
+            aria-label={`${explChain} address`}
             spellCheck={false}
             className="w-full rounded-tile border border-border bg-surface px-4 py-3 text-sm tnum outline-none focus:border-accent"
           />
           <button
             onClick={() => lookup(address)}
-            disabled={!isValidEthAddress(address) || looking}
+            disabled={!validAddr || looking}
             aria-label="Look up"
             className="grid w-12 shrink-0 place-items-center rounded-tile bg-accent text-accent-ink disabled:opacity-50"
           >
@@ -122,34 +148,53 @@ export default function OnChain() {
           ) : lookErr ? (
             <Card className="p-4"><ErrorState message={lookErr} onRetry={() => lookup(address)} /></Card>
           ) : account ? (
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <CoinIcon symbol="ETH" color="#627EEA" glyph="◆" size={40} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-muted">On-chain balance</p>
-                  <p className="font-display text-2xl font-bold tnum">{formatAmount(account.eth, 6)} ETH</p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm">
-                <span className="text-muted">Transactions (nonce)</span>
-                <span className="font-semibold tnum">{account.txCount.toLocaleString()}</span>
-              </div>
-              <a
-                href={`https://etherscan.io/address/${account.address}`}
-                target="_blank" rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-pos"
-              >
-                View on Etherscan <ExternalLink size={14} />
-              </a>
-            </Card>
+            <ExplorerResult
+              symbol="ETH" color="#627EEA" glyph="◆"
+              balance={`${formatAmount(account.eth, 6)} ETH`}
+              statLabel="Transactions (nonce)" statValue={account.txCount.toLocaleString()}
+              href={`https://etherscan.io/address/${account.address}`} explorer="Etherscan"
+            />
+          ) : btcAcct ? (
+            <ExplorerResult
+              symbol="BTC" color="#F7931A" glyph="₿"
+              balance={`${formatAmount(btcAcct.balanceBtc, 8)} BTC`}
+              statLabel="Transactions" statValue={btcAcct.txCount.toLocaleString()}
+              href={`https://mempool.space/address/${btcAcct.address}`} explorer="mempool.space"
+            />
           ) : (
             <p className="px-1 text-xs text-faint">
-              Reads a real balance and transaction count straight from Ethereum mainnet.
+              Reads a real balance straight from {explChain === "ETH" ? "Ethereum" : "Bitcoin"} mainnet.
             </p>
           )}
         </div>
       </div>
     </>
+  );
+}
+
+function ExplorerResult({
+  symbol, color, glyph, balance, statLabel, statValue, href, explorer,
+}: {
+  symbol: string; color: string; glyph: string; balance: string;
+  statLabel: string; statValue: string; href: string; explorer: string;
+}) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-3">
+        <CoinIcon symbol={symbol} color={color} glyph={glyph} size={40} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-muted">On-chain balance</p>
+          <p className="font-display text-2xl font-bold tnum">{balance}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm">
+        <span className="text-muted">{statLabel}</span>
+        <span className="font-semibold tnum">{statValue}</span>
+      </div>
+      <a href={href} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-pos">
+        View on {explorer} <ExternalLink size={14} />
+      </a>
+    </Card>
   );
 }
 
