@@ -42,32 +42,32 @@ export const ASSETS: Asset[] = [
   {
     id: "btc", name: "Bitcoin", symbol: "BTC", glyph: "₿", color: "#F7931A",
     price: 67420.1, change24h: 2.14, sparkline: makeSeries(1, 32, 67000, 0.012),
-    marketCap: 1_324_000_000_000, volume24h: 38_200_000_000, holdings: 0.42, category: "crypto",
+    marketCap: 1_324_000_000_000, volume24h: 38_200_000_000, holdings: 0.42, avgCost: 41800, category: "crypto",
   },
   {
     id: "eth", name: "Ethereum", symbol: "ETH", glyph: "◆", color: "#627EEA",
     price: 3108.4, change24h: 6.2, sparkline: makeSeries(2, 32, 3050, 0.02),
-    marketCap: 373_000_000_000, volume24h: 16_800_000_000, holdings: 3.1, category: "crypto",
+    marketCap: 373_000_000_000, volume24h: 16_800_000_000, holdings: 3.1, avgCost: 2210, category: "crypto",
   },
   {
     id: "sol", name: "Solana", symbol: "SOL", glyph: "◎", color: "#14F195",
     price: 146.7, change24h: -1.84, sparkline: makeSeries(3, 32, 150, 0.03),
-    marketCap: 66_500_000_000, volume24h: 3_100_000_000, holdings: 24, category: "crypto",
+    marketCap: 66_500_000_000, volume24h: 3_100_000_000, holdings: 24, avgCost: 172, category: "crypto",
   },
   {
     id: "usdc", name: "USD Coin", symbol: "USDC", glyph: "$", color: "#2775CA",
     price: 1.0, change24h: 0.01, sparkline: makeSeries(5, 32, 1, 0.001),
-    marketCap: 34_000_000_000, volume24h: 6_400_000_000, holdings: 3200, category: "stablecoin",
+    marketCap: 34_000_000_000, volume24h: 6_400_000_000, holdings: 3200, avgCost: 1.0, category: "stablecoin",
   },
   {
     id: "avax", name: "Avalanche", symbol: "AVAX", glyph: "▲", color: "#E84142",
     price: 27.9, change24h: 3.42, sparkline: makeSeries(6, 32, 27, 0.03),
-    marketCap: 11_300_000_000, volume24h: 410_000_000, holdings: 0, category: "crypto",
+    marketCap: 11_300_000_000, volume24h: 410_000_000, holdings: 0, avgCost: 0, category: "crypto",
   },
   {
     id: "link", name: "Chainlink", symbol: "LINK", glyph: "⬡", color: "#2A5ADA",
     price: 13.6, change24h: -0.72, sparkline: makeSeries(7, 32, 13.8, 0.025),
-    marketCap: 8_500_000_000, volume24h: 320_000_000, holdings: 0, category: "crypto",
+    marketCap: 8_500_000_000, volume24h: 320_000_000, holdings: 0, avgCost: 0, category: "crypto",
   },
 ];
 

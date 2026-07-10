@@ -20,6 +20,7 @@ import {
   assetById,
 } from "./mock-data";
 import { CG_IDS, cgChart, cgMarkets, cgTopCoins, downsample } from "./coingecko";
+import { fetchCryptoNews } from "./news";
 import type {
   Asset,
   EarnAsset,
@@ -242,7 +243,12 @@ export async function getExplore(): Promise<ExploreData> {
 }
 
 export async function getNews(): Promise<NewsItem[]> {
-  return delay([...NEWS]);
+  if (!config.useRealData) return delay([...NEWS]);
+  try {
+    return await fetchCryptoNews();
+  } catch {
+    return [...NEWS];
+  }
 }
 
 /** Simulate placing a trade — priced at the live rate, returns a receipt. */

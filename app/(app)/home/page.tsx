@@ -183,21 +183,39 @@ export default function HomeScreen() {
           </div>
         ) : (
           <div className="divide-y divide-border/60">
-            {news.data.map((n) => (
-              <article key={n.id} className="flex items-center gap-3 py-3">
-                <span
-                  aria-hidden
-                  className="h-16 w-16 shrink-0 rounded-tile"
-                  style={{ background: `linear-gradient(135deg, ${n.tint}, ${n.tint}55)` }}
-                />
-                <div className="min-w-0">
-                  <p className={cn("line-clamp-2 font-semibold leading-snug")}>{n.title}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {n.source} · {n.ago} · {n.category}
-                  </p>
-                </div>
-              </article>
-            ))}
+            {news.data.map((n) => {
+              const Wrapper: any = n.url ? "a" : "div";
+              return (
+                <Wrapper
+                  key={n.id}
+                  {...(n.url ? { href: n.url, target: "_blank", rel: "noopener noreferrer" } : {})}
+                  className="flex items-center gap-3 py-3 transition active:bg-surface-2"
+                >
+                  {n.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={n.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="h-16 w-16 shrink-0 rounded-tile bg-surface-2 object-cover"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="h-16 w-16 shrink-0 rounded-tile"
+                      style={{ background: `linear-gradient(135deg, ${n.tint}, ${n.tint}55)` }}
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 font-semibold leading-snug">{n.title}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {n.source} · {n.ago} · {n.category}
+                    </p>
+                  </div>
+                </Wrapper>
+              );
+            })}
           </div>
         )}
       </section>

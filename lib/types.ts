@@ -21,6 +21,8 @@ export interface Asset {
   volume24h: number;
   /** Units of this asset the user holds (0 = on watchlist only). */
   holdings: number;
+  /** Average cost per unit (USD) — used for unrealized P&L. */
+  avgCost: number;
   category: AssetCategory;
 }
 
@@ -95,6 +97,9 @@ export interface NewsItem {
   category: string;
   ago: string;
   tint: string;
+  /** Real article thumbnail + link (when sourced from live news). */
+  imageUrl?: string;
+  url?: string;
 }
 
 /** A promo/announcement carousel card. */

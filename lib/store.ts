@@ -14,8 +14,11 @@ export type ThemeMode = "light" | "dark" | "system";
 export interface Settings {
   biometrics: boolean;
   twoFactor: boolean;
+  transactionPin: boolean;
   priceAlerts: boolean;
   productNews: boolean;
+  currency: string;
+  language: string;
 }
 
 interface UIState {
@@ -66,8 +69,11 @@ export const useUIStore = create<UIState>()(
       settings: {
         biometrics: true,
         twoFactor: true,
+        transactionPin: false,
         priceAlerts: true,
         productNews: false,
+        currency: "USD",
+        language: "English",
       },
       updateSettings: (patch) =>
         set({ settings: { ...get().settings, ...patch } }),
