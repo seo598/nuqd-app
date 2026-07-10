@@ -107,7 +107,7 @@ export default function HomeScreen() {
               <SummaryCard icon={<WalletIcon size={18} />} label="Available" value={formatCurrency(p.availableUsd)} sub="Ready to trade" />
             </Link>
             <Link href="/earn">
-              <SummaryCard icon={<TrendingUp size={18} />} label="Earning" value={formatCurrency(p.earningUsd)} sub="Across 4 assets" accent />
+              <SummaryCard icon={<TrendingUp size={18} />} label="Earn" value="Coming soon" sub="Grow idle cash" accent />
             </Link>
           </>
         )}
@@ -172,11 +172,13 @@ export default function HomeScreen() {
       {/* News */}
       <section className="mt-7">
         <SectionHeader title="News" seeAllHref="/explore" />
-        <button className="mb-1 flex w-full items-center gap-3 rounded-tile bg-surface-2 px-4 py-3 text-left">
+        <div className="mb-1 flex w-full items-center gap-3 rounded-tile bg-surface-2 px-4 py-3 text-left">
           <Sparkles size={18} className="text-pos" aria-hidden />
           <span className="flex-1 font-semibold">Get an AI summary</span>
-          <ChevronRight size={18} className="text-muted" aria-hidden />
-        </button>
+          <span className="rounded-pill bg-accent-soft px-2.5 py-1 text-xs font-bold text-pos">
+            Coming soon
+          </span>
+        </div>
         {news.loading || !news.data ? (
           <div className="space-y-3 py-2">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}

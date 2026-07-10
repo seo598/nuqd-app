@@ -84,12 +84,8 @@ export const PORTFOLIO_SERIES: Record<string, number[]> = {
   All: makeSeries(105, 60, 12000, 0.09),
 };
 
-export const EARN_POSITIONS: EarnPosition[] = [
-  { assetId: "usdc", apy: 14.0, balance: 3200, earnedUsd: 214.66 },
-  { assetId: "btc", apy: 7.0, balance: 0.18, earnedUsd: 96.4 },
-  { assetId: "eth", apy: 5.5, balance: 1.2, earnedUsd: 41.2 },
-  { assetId: "sol", apy: 9.0, balance: 10, earnedUsd: 18.75 },
-];
+// Earn isn't live yet (coming soon) — no active positions.
+export const EARN_POSITIONS: EarnPosition[] = [];
 
 export const APY_TIERS: Record<string, number> = {
   usdc: 14.0, btc: 7.0, eth: 5.5, sol: 9.0, nuqd: 11.0, avax: 6.0, link: 4.5,

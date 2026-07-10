@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   BadgeCheck, Bell, ChevronRight, Copy, CreditCard, Fingerprint, Gift, Globe,
   Headphones, KeyRound, LifeBuoy, Lock, LogOut, Moon, Check, ScrollText,
-  Share2, Shield, ShieldCheck, Smartphone, Star, Trash2, UserRound, Wallet,
+  Share2, Shield, ShieldCheck, Smartphone, Star, Trash2, UserRound,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -130,7 +130,6 @@ export default function ProfileScreen() {
         <RowToggle icon={<KeyRound size={18} />} label="Transaction PIN" desc="Confirm each transfer"
           checked={settings.transactionPin} onChange={(v) => updateSettings({ transactionPin: v })} />
         <RowLink icon={<Lock size={18} />} label="Change password" />
-        <RowLink icon={<Wallet size={18} />} label="Recovery phrase" desc="View & re-verify backup" />
         <RowLink icon={<Smartphone size={18} />} label="Connected devices" desc="2 active" />
       </Group>
 

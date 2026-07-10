@@ -52,8 +52,8 @@ export default function CardScreen() {
       >
         <Info size={18} className="mt-0.5 shrink-0 text-pos" aria-hidden />
         <p className="text-sm text-text">
-          The NUQD Card is <b>coming soon</b> to your region. Join the waitlist and we&apos;ll
-          notify you the moment it goes live.
+          The NUQD Card is <b>coming soon</b> — for everyone. Join the waitlist and we&apos;ll
+          notify you the moment it launches.
         </p>
       </div>
 
