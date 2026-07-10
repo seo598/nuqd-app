@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -36,10 +36,12 @@ export function CoinIcon({
   src?: string;
 }) {
   const gid = useId();
+  const [imgFailed, setImgFailed] = useState(false);
   const key = symbol.toUpperCase();
 
-  // Real logo image (from live data) takes precedence over the drawn mark.
-  if (src) {
+  // Real logo image (from live data) takes precedence over the drawn mark —
+  // but if it 404s we fall back to the drawn mark instead of a broken image.
+  if (src && !imgFailed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -49,6 +51,7 @@ export function CoinIcon({
         height={size}
         loading="lazy"
         referrerPolicy="no-referrer"
+        onError={() => setImgFailed(true)}
         className={cn("shrink-0 rounded-full bg-surface-2 object-cover", className)}
       />
     );

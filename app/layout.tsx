@@ -28,8 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${grotesk.variable}`}>
       <body>
         <ThemeProvider>
-          {/* Centered phone frame — full-bleed on mobile, framed on desktop. */}
-          <div className="mx-auto flex min-h-[100dvh] w-full max-w-app flex-col bg-bg sm:border-x sm:border-border/70">
+          {/* Centered phone frame — full-bleed on mobile, framed on desktop.
+              `relative` anchors absolutely-positioned overlays (Sheet) to the frame. */}
+          <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-app flex-col bg-bg sm:border-x sm:border-border/70">
             {children}
           </div>
         </ThemeProvider>

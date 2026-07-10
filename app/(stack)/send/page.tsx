@@ -88,7 +88,16 @@ export default function SendScreen() {
                   inputMode="decimal"
                   placeholder="0.00"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                  onChange={(e) => {
+                    // Digits + at most one decimal point.
+                    const v = e.target.value.replace(/[^0-9.]/g, "");
+                    const firstDot = v.indexOf(".");
+                    setAmount(
+                      firstDot === -1
+                        ? v
+                        : v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, "")
+                    );
+                  }}
                   aria-label="Amount to send"
                   className="w-full bg-transparent font-display text-3xl font-bold tnum outline-none placeholder:text-faint"
                 />

@@ -25,13 +25,19 @@ export function Sheet({
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    // Lock background scroll while the sheet is open.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose]);
 
   if (!open) return null;
 
   return (
-    <div className="absolute inset-0 z-50 flex flex-col justify-end">
+    <div className="fixed inset-0 z-50 mx-auto flex w-full max-w-app flex-col justify-end">
       <div
         className="absolute inset-0 bg-black/40 animate-fade-up"
         onClick={onClose}

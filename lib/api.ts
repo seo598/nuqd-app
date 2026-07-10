@@ -131,16 +131,25 @@ export async function getAsset(id: string): Promise<Asset> {
   return { ...a };
 }
 
+// Chart-series cache (2 min per asset+range) — flipping ranges is instant
+// and avoids hammering CoinGecko's rate limit.
+const seriesCache = new Map<string, { at: number; data: number[] }>();
+
 /** Real price series for one asset over a range (falls back to its sparkline). */
 export async function getAssetSeries(id: string, range: Range): Promise<number[]> {
   const fallback = () => assetById(id)?.sparkline ?? [];
   if (!config.useRealData || !CG_IDS[id]) return fallback();
+  const key = `${id}:${range}`;
+  const hit = seriesCache.get(key);
+  if (hit && Date.now() - hit.at < 120_000) return hit.data;
   const days: Record<Range, string> = { "1H": "1", "1D": "1", "1W": "7", "1M": "30", "1Y": "365", All: "max" };
   try {
     const series = await cgChart(id, days[range]);
     // CoinGecko's 1-day feed is ~5-min data; take the last hour for 1H.
     const scoped = range === "1H" ? series.slice(-13) : series;
-    return downsample(scoped, 48);
+    const data = downsample(scoped, 48);
+    seriesCache.set(key, { at: Date.now(), data });
+    return data;
   } catch {
     return fallback();
   }
@@ -192,6 +201,40 @@ function mockMovers() {
   };
 }
 
+type Movers = { gainers: MarketCoin[]; losers: MarketCoin[] };
+
+// Real top-movers cache (60s) + in-flight dedup — Explore revisits are instant.
+let moversCache: { at: number; data: Movers } | null = null;
+let moversInflight: Promise<Movers> | null = null;
+
+async function loadMovers(): Promise<Movers> {
+  if (moversCache && Date.now() - moversCache.at < 60_000) return moversCache.data;
+  if (moversInflight) return moversInflight;
+  moversInflight = cgTopCoins()
+    .then((top) => {
+      const mapped: MarketCoin[] = top
+        .filter((c) => typeof c.price_change_percentage_24h === "number")
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          symbol: c.symbol.toUpperCase(),
+          glyph: (c.symbol[0] ?? "?").toUpperCase(),
+          color: "#3a3f4b",
+          price: c.current_price,
+          change24h: c.price_change_percentage_24h as number,
+          image: c.image,
+        }));
+      const sorted = [...mapped].sort((a, b) => b.change24h - a.change24h);
+      const data = { gainers: sorted.slice(0, 5), losers: [...sorted].reverse().slice(0, 5) };
+      moversCache = { at: Date.now(), data };
+      return data;
+    })
+    .finally(() => {
+      moversInflight = null;
+    });
+  return moversInflight;
+}
+
 /** Everything the Explore screen needs. Gainers/losers are real top movers. */
 export async function getExplore(): Promise<ExploreData> {
   const assets = await loadAssets();
@@ -210,21 +253,7 @@ export async function getExplore(): Promise<ExploreData> {
   let movers = mockMovers();
   if (config.useRealData) {
     try {
-      const top = await cgTopCoins();
-      const mapped: MarketCoin[] = top
-        .filter((c) => typeof c.price_change_percentage_24h === "number")
-        .map((c) => ({
-          id: c.id,
-          name: c.name,
-          symbol: c.symbol.toUpperCase(),
-          glyph: (c.symbol[0] ?? "?").toUpperCase(),
-          color: "#3a3f4b",
-          price: c.current_price,
-          change24h: c.price_change_percentage_24h as number,
-          image: c.image,
-        }));
-      const sorted = [...mapped].sort((a, b) => b.change24h - a.change24h);
-      movers = { gainers: sorted.slice(0, 5), losers: [...sorted].reverse().slice(0, 5) };
+      movers = await loadMovers();
     } catch {
       /* keep mock movers */
     }
@@ -245,13 +274,24 @@ export async function getExplore(): Promise<ExploreData> {
   };
 }
 
+// News cache (5 min) + in-flight dedup — revisiting Home is instant.
+let newsCache: { at: number; data: NewsItem[] } | null = null;
+let newsInflight: Promise<NewsItem[]> | null = null;
+
 export async function getNews(): Promise<NewsItem[]> {
   if (!config.useRealData) return delay([...NEWS]);
-  try {
-    return await fetchCryptoNews();
-  } catch {
-    return [...NEWS];
-  }
+  if (newsCache && Date.now() - newsCache.at < 300_000) return newsCache.data;
+  if (newsInflight) return newsInflight;
+  newsInflight = fetchCryptoNews()
+    .then((data) => {
+      newsCache = { at: Date.now(), data };
+      return data;
+    })
+    .catch(() => newsCache?.data ?? [...NEWS])
+    .finally(() => {
+      newsInflight = null;
+    });
+  return newsInflight;
 }
 
 /** Simulate placing a trade — priced at the live rate, returns a receipt. */

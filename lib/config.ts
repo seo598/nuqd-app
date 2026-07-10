@@ -9,7 +9,7 @@ export const config = {
   useRealData: (process.env.NEXT_PUBLIC_USE_REAL_DATA ?? "true") !== "false",
   mock: {
     /** Simulated network latency for the mock API, in milliseconds. */
-    latencyMs: Number(process.env.NEXT_PUBLIC_MOCK_LATENCY_MS ?? 550),
+    latencyMs: Number(process.env.NEXT_PUBLIC_MOCK_LATENCY_MS ?? 180),
     /** Probability [0–1] that a mock request fails, to exercise error states. */
     errorRate: Number(process.env.NEXT_PUBLIC_MOCK_ERROR_RATE ?? 0),
   },

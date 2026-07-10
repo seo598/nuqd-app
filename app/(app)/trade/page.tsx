@@ -40,6 +40,16 @@ export default function TradeScreen() {
   const primaryAsset = mode === "buy" ? to : from; // asset being bought/sold/swapped-from
 
   const units = primaryAsset ? usd / primaryAsset.price : 0;
+  // What the user actually receives: buy → units of `to`; swap → units of `to`
+  // (net of fee); sell → cash (net of fee).
+  const receiveText =
+    mode === "sell"
+      ? formatCurrency(Math.max(0, usd - fee))
+      : mode === "swap" && to
+        ? `${formatAmount(Math.max(0, usd - fee) / to.price)} ${to.symbol}`
+        : primaryAsset
+          ? `${formatAmount(units)} ${primaryAsset.symbol}`
+          : "—";
   const canReview = usd > 0 && !!primaryAsset && (mode !== "swap" || fromId !== toId);
 
   const modeLabel: Record<Mode, string> = { buy: "Buy", sell: "Sell", swap: "Swap" };
@@ -181,11 +191,17 @@ export default function TradeScreen() {
           <>
             <Card className="mb-4 p-4">
               <div className="grid grid-cols-2 gap-4">
-                <StatPair label={`${modeLabel[mode]} amount`} value={formatCurrency(usd)} />
                 <StatPair
-                  label="You receive"
-                  value={primaryAsset ? `${formatAmount(units)} ${primaryAsset.symbol}` : "—"}
+                  label={mode === "buy" ? "Buy amount" : mode === "sell" ? "Selling" : "Swapping"}
+                  value={
+                    mode === "buy"
+                      ? formatCurrency(usd)
+                      : primaryAsset
+                        ? `${formatAmount(units)} ${primaryAsset.symbol}`
+                        : "—"
+                  }
                 />
+                <StatPair label="You receive" value={receiveText} />
                 <StatPair label="Rate" value={primaryAsset ? formatCurrency(primaryAsset.price) : "—"} />
                 <StatPair label="Network" value="NUQD instant" />
               </div>
@@ -193,7 +209,11 @@ export default function TradeScreen() {
               <div className="space-y-1.5 text-sm">
                 <Line label="Subtotal" value={formatCurrency(usd)} />
                 <Line label={`Fee (${(FEE_RATE * 100).toFixed(1)}%)`} value={formatCurrency(fee)} />
-                <Line label="Total" value={formatCurrency(usd + fee)} strong />
+                {mode === "buy" ? (
+                  <Line label="Total to pay" value={formatCurrency(usd + fee)} strong />
+                ) : (
+                  <Line label="Net received" value={formatCurrency(Math.max(0, usd - fee))} strong />
+                )}
               </div>
             </Card>
             <Button fullWidth size="lg" loading={submitting} onClick={confirm}>

@@ -22,9 +22,15 @@ export default function OnChain() {
   const eth = useAsync(getEthNetwork, []);
   const btc = useAsync(getBtcNetwork, []);
 
-  // Refresh live network stats every 15s.
+  // Refresh live network stats every 15s — but only while the tab is visible,
+  // so a backgrounded app doesn't keep hitting the RPCs.
   useEffect(() => {
-    const t = setInterval(() => { eth.reload(); btc.reload(); }, 15_000);
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        eth.reload();
+        btc.reload();
+      }
+    }, 15_000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -38,7 +38,8 @@ export default function HomeScreen() {
   const news = useAsync(getNews, []);
 
   const p = portfolio.data;
-  const shownValue = p ? (scrub != null ? p.series[scrub] : p.totalUsd) : 0;
+  // Guard the scrub index — the series length changes across ranges.
+  const shownValue = p ? (scrub != null ? p.series[scrub] ?? p.totalUsd : p.totalUsd) : 0;
   const promos = PROMOS.filter((pr) => !dismissed.includes(pr.id));
 
   return (
@@ -53,25 +54,25 @@ export default function HomeScreen() {
       ) : (
         <section aria-label="Portfolio value" className="animate-fade-up">
           <p className="text-sm text-muted">Total balance</p>
-          {portfolio.loading || !p ? (
+          {!p ? (
             <Skeleton className="mt-1 h-10 w-52" />
           ) : (
             <h1 className="mt-0.5 font-display text-[40px] font-bold leading-none tnum">
               {formatCurrency(shownValue)}
             </h1>
           )}
-          {p && !portfolio.loading && (
+          {p && (
             <div className="mt-2 flex items-center gap-2">
               <ChangeChip value={p.changePct} />
               <span className="text-sm text-muted tnum">
                 {p.changeUsd >= 0 ? "+" : "−"}
-                {formatCurrency(Math.abs(p.changeUsd))} · {range}
+                {formatCurrency(Math.abs(p.changeUsd))} · 24h
               </span>
             </div>
           )}
 
           <div className="mt-4">
-            {portfolio.loading || !p ? (
+            {!p ? (
               <Skeleton className="h-[168px] w-full" />
             ) : (
               <LineChart data={p.series} onScrub={setScrub} />
@@ -96,7 +97,7 @@ export default function HomeScreen() {
 
       {/* Summary cards */}
       <section className="mt-4 grid grid-cols-2 gap-3">
-        {portfolio.loading || !p ? (
+        {!p ? (
           <>
             <Skeleton className="h-[116px]" />
             <Skeleton className="h-[116px]" />

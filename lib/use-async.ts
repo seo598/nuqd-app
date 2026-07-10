@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface AsyncState<T> {
   data: T | null;
@@ -22,19 +22,25 @@ export function useAsync<T>(
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Monotonic token: only the latest run may commit its result, so a slow
+  // earlier request can never overwrite a newer one (rapid range switching,
+  // retry spam, unmount).
+  const seq = useRef(0);
 
   const run = useCallback(() => {
-    let alive = true;
+    const id = ++seq.current;
+    const alive = () => id === seq.current;
     setLoading(true);
     setError(null);
     loader()
-      .then((d) => alive && setData(d))
+      .then((d) => alive() && setData(d))
       .catch((e: unknown) =>
-        alive && setError(e instanceof Error ? e.message : "Something went wrong.")
+        alive() && setError(e instanceof Error ? e.message : "Something went wrong.")
       )
-      .finally(() => alive && setLoading(false));
+      .finally(() => alive() && setLoading(false));
     return () => {
-      alive = false;
+      // Invalidate this run on cleanup (unmount / deps change).
+      if (alive()) seq.current++;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

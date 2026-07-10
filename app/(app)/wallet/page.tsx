@@ -52,7 +52,7 @@ export default function WalletScreen() {
       ) : (
         <section className="animate-fade-up">
           <p className="text-sm text-muted">Total value</p>
-          {portfolio.loading || !p ? (
+          {!p ? (
             <Skeleton className="mt-1 h-10 w-56" />
           ) : (
             <>
@@ -69,7 +69,7 @@ export default function WalletScreen() {
           )}
 
           <div className="mt-4">
-            {portfolio.loading || !p ? (
+            {!p ? (
               <Skeleton className="h-[150px] w-full" />
             ) : (
               <LineChart data={p.series} height={150} />
