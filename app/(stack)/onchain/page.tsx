@@ -1,18 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Boxes, ExternalLink, Fuel, RefreshCw, Search, Wallet } from "lucide-react";
+import { Boxes, ExternalLink, Fuel, RefreshCw, Search } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { CoinIcon } from "@/components/coin-icon";
+import { LiveWallet } from "@/components/live-wallet";
 import { useAsync } from "@/lib/use-async";
-import {
-  connectWallet, getBtcNetwork, getEthAccount, getEthNetwork, hasInjectedWallet,
-  isValidEthAddress, type EthAccount,
-} from "@/lib/blockchain";
+import { getBtcNetwork, getEthAccount, getEthNetwork, isValidEthAddress, type EthAccount } from "@/lib/blockchain";
 import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -39,28 +36,12 @@ export default function OnChain() {
   const [account, setAccount] = useState<EthAccount | null>(null);
   const [looking, setLooking] = useState(false);
   const [lookErr, setLookErr] = useState<string | null>(null);
-  const [wallet, setWallet] = useState<string | null>(null);
-  const [walletMsg, setWalletMsg] = useState<string | null>(null);
 
   async function lookup(addr: string) {
     setLooking(true); setLookErr(null);
     try { setAccount(await getEthAccount(addr)); }
     catch (e) { setLookErr(e instanceof Error ? e.message : "Lookup failed"); setAccount(null); }
     finally { setLooking(false); }
-  }
-
-  async function connect() {
-    setWalletMsg(null);
-    if (!hasInjectedWallet()) {
-      setWalletMsg("No browser wallet detected. Install MetaMask, or look up any address below.");
-      return;
-    }
-    try {
-      const a = await connectWallet();
-      if (a) { setWallet(a); setAddress(a); lookup(a); }
-    } catch {
-      setWalletMsg("Connection request was cancelled.");
-    }
   }
 
   return (
@@ -110,21 +91,9 @@ export default function OnChain() {
           />
         </div>
 
-        {/* Connect wallet */}
+        {/* Real wallet — connect, receive, send */}
         <h2 className="mb-2 mt-6 text-lg font-bold">Your wallet</h2>
-        <Card className="p-4">
-          {wallet ? (
-            <div>
-              <p className="text-sm text-muted">Connected</p>
-              <p className="font-semibold tnum break-all">{wallet}</p>
-            </div>
-          ) : (
-            <Button fullWidth onClick={connect}>
-              <Wallet size={18} /> Connect wallet
-            </Button>
-          )}
-          {walletMsg && <p className="mt-2 text-sm text-muted">{walletMsg}</p>}
-        </Card>
+        <LiveWallet />
 
         {/* Address explorer */}
         <h2 className="mb-2 mt-6 text-lg font-bold">Address explorer</h2>
