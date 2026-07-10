@@ -27,6 +27,14 @@ import type { Range } from "@/lib/types";
 
 const RANGES: Range[] = ["1H", "1D", "1W", "1M", "1Y", "All"];
 
+// Where each promo card leads.
+const PROMO_LINKS: Record<string, string> = {
+  coin: "/explore",
+  gcc: "/rwa",
+  stocks: "/rwa",
+  card: "/card",
+};
+
 export default function HomeScreen() {
   const [range, setRange] = useState<Range>("1W");
   const [scrub, setScrub] = useState<number | null>(null);
@@ -132,9 +140,16 @@ export default function HomeScreen() {
           {promos.map((pr) => (
             <div
               key={pr.id}
-              className="relative flex min-h-[104px] w-[78%] shrink-0 snap-start flex-col justify-between overflow-hidden rounded-card p-4 shadow-card"
+              className="relative flex min-h-[104px] w-[78%] shrink-0 snap-start overflow-hidden rounded-card shadow-card"
               style={{ background: `linear-gradient(140deg, ${pr.from}, ${pr.to})` }}
             >
+              <Link href={PROMO_LINKS[pr.id] ?? "/explore"} className="flex flex-1 flex-col justify-between p-4">
+                <p className="pr-9 font-semibold leading-snug text-white">{pr.title}</p>
+                <span className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-pos">
+                  {pr.cta}
+                  <ChevronRight size={14} aria-hidden />
+                </span>
+              </Link>
               <button
                 onClick={() => setDismissed((d) => [...d, pr.id])}
                 aria-label="Dismiss"
@@ -142,11 +157,6 @@ export default function HomeScreen() {
               >
                 <X size={14} />
               </button>
-              <p className="pr-9 font-semibold leading-snug text-white">{pr.title}</p>
-              <span className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-pos">
-                {pr.cta}
-                <ChevronRight size={14} aria-hidden />
-              </span>
             </div>
           ))}
         </div>

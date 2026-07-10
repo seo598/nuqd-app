@@ -21,7 +21,7 @@ export function TopBar() {
       </div>
       <div className="relative z-10 flex items-center gap-1.5">
         <Link
-          href="/card"
+          href="/rewards"
           aria-label="Rewards"
           className="relative grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-muted"
         >
@@ -29,7 +29,7 @@ export function TopBar() {
           <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent" aria-hidden />
         </Link>
         <Link
-          href="/activity"
+          href="/notifications"
           aria-label="Notifications"
           className="relative grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-muted"
         >

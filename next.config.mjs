@@ -7,6 +7,8 @@ const isPages = process.env.PAGES === "true";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Exposed to the client so metadata (manifest/icon hrefs) can match basePath.
+  env: { NEXT_PUBLIC_BASE_PATH: isPages ? "/nuqd-app" : "" },
   ...(isPages
     ? {
         output: "export",

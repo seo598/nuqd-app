@@ -8,9 +8,19 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const grotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-display", display: "swap" });
 
+// Prefix that matches the deployment basePath (empty in local dev).
+const bp = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
 export const metadata: Metadata = {
   title: `${config.appName} — Digital Wealth`,
   description: "A premium, mobile-first digital-wealth app: portfolio, trading, earn, and self-custody in one.",
+  applicationName: "NUQD",
+  manifest: `${bp}/manifest.webmanifest`,
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "NUQD" },
+  icons: {
+    icon: `${bp}/icons/icon-192.png`,
+    apple: `${bp}/icons/apple-touch-icon.png`,
+  },
 };
 
 export const viewport: Viewport = {
