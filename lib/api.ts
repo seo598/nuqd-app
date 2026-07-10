@@ -135,9 +135,12 @@ export async function getAsset(id: string): Promise<Asset> {
 export async function getAssetSeries(id: string, range: Range): Promise<number[]> {
   const fallback = () => assetById(id)?.sparkline ?? [];
   if (!config.useRealData || !CG_IDS[id]) return fallback();
-  const days: Record<Range, string> = { "1D": "1", "1W": "7", "1M": "30", "1Y": "365", All: "max" };
+  const days: Record<Range, string> = { "1H": "1", "1D": "1", "1W": "7", "1M": "30", "1Y": "365", All: "max" };
   try {
-    return downsample(await cgChart(id, days[range]), 48);
+    const series = await cgChart(id, days[range]);
+    // CoinGecko's 1-day feed is ~5-min data; take the last hour for 1H.
+    const scoped = range === "1H" ? series.slice(-13) : series;
+    return downsample(scoped, 48);
   } catch {
     return fallback();
   }

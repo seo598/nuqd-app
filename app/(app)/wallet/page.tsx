@@ -21,7 +21,7 @@ import { formatAmount, formatCurrency, formatPercent, signColor } from "@/lib/fo
 import { cn } from "@/lib/cn";
 import type { Range } from "@/lib/types";
 
-const RANGES: Range[] = ["1D", "1W", "1M", "1Y", "All"];
+const RANGES: Range[] = ["1H", "1D", "1W", "1M", "1Y", "All"];
 
 export default function WalletScreen() {
   const [range, setRange] = useState<Range>("1M");

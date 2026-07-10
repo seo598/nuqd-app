@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Activity, ArrowRight, Bell, Check, ChevronRight, Landmark, Sparkles } from "lucide-react";
+import { Activity, ArrowRight, Bell, Boxes, Check, ChevronRight, Landmark, Sparkles } from "lucide-react";
 import { TopBar } from "@/components/top-bar";
 import { NuqdLogo } from "@/components/brand";
 import { Card } from "@/components/ui/card";
@@ -117,6 +117,26 @@ export default function ExploreScreen() {
           )}
         </Button>
       </div>
+
+      {/* On-chain — real blockchain */}
+      <Link
+        href="/onchain"
+        className="mt-4 flex items-center gap-3 rounded-card border border-border/60 bg-surface p-4 shadow-card transition active:scale-[0.99]"
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-pos">
+          <Boxes size={22} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="font-semibold">On-chain</p>
+            <span className="inline-flex items-center gap-1 rounded-pill bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-pos">
+              <span className="h-1.5 w-1.5 rounded-full bg-pos" /> Live
+            </span>
+          </div>
+          <p className="text-sm text-muted">Real mainnet data · connect your wallet</p>
+        </div>
+        <ChevronRight size={18} className="text-faint" aria-hidden />
+      </Link>
 
       {error ? (
         <div className="mt-6"><ErrorState message={error} onRetry={reload} /></div>

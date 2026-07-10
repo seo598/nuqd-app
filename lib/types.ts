@@ -1,6 +1,6 @@
 /** Shared domain types for the whole app. */
 
-export type Range = "1D" | "1W" | "1M" | "1Y" | "All";
+export type Range = "1H" | "1D" | "1W" | "1M" | "1Y" | "All";
 
 export type AssetCategory = "crypto" | "stablecoin" | "token";
 

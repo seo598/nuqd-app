@@ -77,6 +77,7 @@ export function assetById(id: string): Asset | undefined {
 
 /** Portfolio chart series per range (points scale with range length). */
 export const PORTFOLIO_SERIES: Record<string, number[]> = {
+  "1H": makeSeries(100, 20, 48100, 0.0025),
   "1D": makeSeries(101, 24, 47800, 0.006),
   "1W": makeSeries(102, 28, 46200, 0.012),
   "1M": makeSeries(103, 30, 44100, 0.02),

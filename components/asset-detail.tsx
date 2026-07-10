@@ -19,7 +19,7 @@ import { formatAmount, formatCompactCurrency, formatCurrency } from "@/lib/forma
 import { useUIStore } from "@/lib/store";
 import type { Range } from "@/lib/types";
 
-const RANGES: Range[] = ["1D", "1W", "1M", "1Y", "All"];
+const RANGES: Range[] = ["1H", "1D", "1W", "1M", "1Y", "All"];
 
 /** Asset detail screen. `id` comes from the route (server) wrapper. */
 export function AssetDetail({ id }: { id: string }) {
