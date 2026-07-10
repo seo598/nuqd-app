@@ -161,6 +161,7 @@ export const OPPORTUNITIES: Opportunity[] = [
 
 /** Dashboard promo/announcement cards. */
 export const PROMOS: Promo[] = [
+  { id: "coin", title: "The NUQD Coin is coming soon — powering the whole ecosystem", cta: "Get notified", from: "#10261f", to: "#0a1310" },
   { id: "gcc", title: "NUQD launches across the GCC", cta: "Learn more", from: "#0f2e2a", to: "#0a1720" },
   { id: "stocks", title: "Tokenized Gulf real estate is live", cta: "Learn more", from: "#14263b", to: "#0a1420" },
   { id: "card", title: "The NUQD Card is coming soon", cta: "Join waitlist", from: "#1b2735", to: "#0e1520" },

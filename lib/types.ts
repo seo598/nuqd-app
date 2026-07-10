@@ -62,6 +62,8 @@ export interface MarketCoin {
   color: string;
   price: number;
   change24h: number;
+  /** Real logo URL (when sourced from live market data). */
+  image?: string;
 }
 
 /** A perpetual-futures market row. */

@@ -5,6 +5,8 @@
 export const config = {
   appName: process.env.NEXT_PUBLIC_APP_NAME ?? "NUQD",
   baseCurrency: process.env.NEXT_PUBLIC_BASE_CURRENCY ?? "USD",
+  /** Use live CoinGecko market data (falls back to mock on any failure). */
+  useRealData: (process.env.NEXT_PUBLIC_USE_REAL_DATA ?? "true") !== "false",
   mock: {
     /** Simulated network latency for the mock API, in milliseconds. */
     latencyMs: Number(process.env.NEXT_PUBLIC_MOCK_LATENCY_MS ?? 550),

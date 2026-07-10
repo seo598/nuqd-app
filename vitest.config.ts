@@ -12,6 +12,8 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_MOCK_LATENCY_MS: "0",
       NEXT_PUBLIC_MOCK_ERROR_RATE: "0",
+      // Tests run against the deterministic mock data, never the live API.
+      NEXT_PUBLIC_USE_REAL_DATA: "false",
     },
   },
 });

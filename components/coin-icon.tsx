@@ -25,15 +25,34 @@ export function CoinIcon({
   glyph,
   size = 40,
   className,
+  src,
 }: {
   symbol: string;
   color: string;
   glyph: string;
   size?: number;
   className?: string;
+  /** Real logo URL (e.g. from live market data). Rendered as an <img>. */
+  src?: string;
 }) {
   const gid = useId();
   const key = symbol.toUpperCase();
+
+  // Real logo image (from live data) takes precedence over the drawn mark.
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={symbol}
+        width={size}
+        height={size}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        className={cn("shrink-0 rounded-full bg-surface-2 object-cover", className)}
+      />
+    );
+  }
 
   let bg = color;
   let mark: React.ReactNode;

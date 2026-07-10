@@ -197,7 +197,7 @@ export default function ExploreScreen() {
                       href={`/asset/${c.id}`}
                       className="flex items-center gap-3 px-4 py-3 transition active:bg-surface-2"
                     >
-                      <CoinIcon symbol={c.symbol} color={c.color} glyph={c.glyph} size={36} />
+                      <CoinIcon symbol={c.symbol} color={c.color} glyph={c.glyph} size={36} src={c.image} />
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold">{c.symbol}</p>
                         <p className="truncate text-xs text-muted">{c.name}</p>
@@ -238,7 +238,7 @@ function CategoryCard({
           ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="my-3 h-9" />)
           : rows.map((c) => (
               <div key={c.id} className="flex items-center gap-3 py-2.5">
-                <CoinIcon symbol={c.symbol} color={c.color} glyph={c.glyph} size={36} />
+                <CoinIcon symbol={c.symbol} color={c.color} glyph={c.glyph} size={36} src={c.image} />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold leading-tight">{c.symbol}</p>
                   <p className="truncate text-xs text-muted">{c.name}</p>

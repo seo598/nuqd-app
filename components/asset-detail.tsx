@@ -14,7 +14,7 @@ import { AssetBadge } from "@/components/asset-badge";
 import { StatPair, SectionHeader } from "@/components/primitives";
 import { ActivityRow } from "@/components/activity-row";
 import { useAsync } from "@/lib/use-async";
-import { getAsset, getAssetActivity } from "@/lib/api";
+import { getAsset, getAssetActivity, getAssetSeries } from "@/lib/api";
 import { formatAmount, formatCompactCurrency, formatCurrency } from "@/lib/format";
 import { useUIStore } from "@/lib/store";
 import type { Range } from "@/lib/types";
@@ -25,6 +25,7 @@ const RANGES: Range[] = ["1D", "1W", "1M", "1Y", "All"];
 export function AssetDetail({ id }: { id: string }) {
   const [range, setRange] = useState<Range>("1W");
   const asset = useAsync(() => getAsset(id), [id]);
+  const series = useAsync(() => getAssetSeries(id, range), [id, range]);
   const history = useAsync(() => getAssetActivity(id), [id]);
   const watchlist = useUIStore((s) => s.watchlist);
   const toggleWatch = useUIStore((s) => s.toggleWatch);
@@ -68,9 +69,15 @@ export function AssetDetail({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* Chart */}
+            {/* Chart — real price series for the selected range */}
             <div className="mt-4">
-              {a ? <LineChart data={a.sparkline} /> : <Skeleton className="h-[168px] w-full" />}
+              {series.data && series.data.length > 1 ? (
+                <LineChart data={series.data} />
+              ) : a && !series.loading ? (
+                <LineChart data={a.sparkline} />
+              ) : (
+                <Skeleton className="h-[168px] w-full" />
+              )}
             </div>
             <div className="mt-3 flex justify-center">
               <Segmented options={RANGES} value={range} onChange={setRange} ariaLabel="Chart range" size="sm" />

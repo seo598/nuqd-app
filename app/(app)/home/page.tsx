@@ -131,7 +131,7 @@ export default function HomeScreen() {
           {promos.map((pr) => (
             <div
               key={pr.id}
-              className="relative w-[80%] shrink-0 snap-start overflow-hidden rounded-card p-4 shadow-card"
+              className="relative flex min-h-[104px] w-[78%] shrink-0 snap-start flex-col justify-between overflow-hidden rounded-card p-4 shadow-card"
               style={{ background: `linear-gradient(140deg, ${pr.from}, ${pr.to})` }}
             >
               <button
@@ -141,8 +141,8 @@ export default function HomeScreen() {
               >
                 <X size={14} />
               </button>
-              <p className="max-w-[80%] font-semibold leading-snug text-white">{pr.title}</p>
-              <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-pos">
+              <p className="pr-9 font-semibold leading-snug text-white">{pr.title}</p>
+              <span className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-pos">
                 {pr.cta}
                 <ChevronRight size={14} aria-hidden />
               </span>
