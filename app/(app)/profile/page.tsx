@@ -43,6 +43,8 @@ export default function ProfileScreen() {
   const email = me?.profile.email || storeUser?.email || "—";
   const verified = isVerified(me);
   const memberSince = me?.profile.joined ? me.profile.joined.slice(0, 4) : "2024";
+  const refCode = me?.profile.referralCode || REFERRAL_CODE;
+  const refCount = me?.profile.referralCount ?? 0;
   const progress = tier.next
     ? Math.min(100, ((value - tier.floor) / (tier.ceil - tier.floor)) * 100)
     : 100;
@@ -54,7 +56,7 @@ export default function ProfileScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   function copyCode() {
-    navigator.clipboard?.writeText(REFERRAL_CODE).catch(() => {});
+    navigator.clipboard?.writeText(refCode).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -113,7 +115,7 @@ export default function ProfileScreen() {
         <div className="min-w-0 flex-1">
           <p className="font-semibold">Invite friends, earn NUQD</p>
           <p className="text-sm text-muted">
-            Your code: <span className="font-semibold text-text tnum">{REFERRAL_CODE}</span>
+            Your code: <span className="font-semibold text-text tnum">{refCode}</span>{refCount > 0 ? ` · ${refCount} joined` : ""}
           </p>
         </div>
         <button
@@ -141,7 +143,7 @@ export default function ProfileScreen() {
         <RowToggle icon={<KeyRound size={18} />} label="Transaction PIN" desc="Confirm each transfer"
           checked={settings.transactionPin} onChange={(v) => updateSettings({ transactionPin: v })} />
         <RowLink icon={<Lock size={18} />} label="Change password" href="/settings/password" />
-        <RowLink icon={<Smartphone size={18} />} label="Connected devices" desc="2 active" href="/settings/devices" />
+        <RowLink icon={<Smartphone size={18} />} label="Connected devices" desc="Active sign-ins" href="/settings/devices" />
       </Group>
 
       {/* Preferences */}

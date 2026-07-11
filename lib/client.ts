@@ -76,7 +76,7 @@ export async function apiSession(): Promise<CoreActor | null> {
 export interface CoreMe {
   actor: CoreActor;
   kyc: { kyc_tier: string; sanctions_clear: boolean; frozen: boolean };
-  profile: { name: string | null; email: string; joined: string | null };
+  profile: { name: string | null; email: string; joined: string | null; referralCode?: string | null; referralCount?: number };
   portfolio: {
     items: Array<{ asset: string; amount: string; usd: string; unit: string; avgCost?: string | null; pnlUsd?: string }>;
     totalUsd: string; investedUsd?: string; unrealizedPnlUsd?: string; realizedPnlUsd?: string;
@@ -151,6 +151,10 @@ export async function apiAllowlistDelete(id: string): Promise<void> { await req(
 
 export interface Limits { tier: string; canWithdraw: boolean; canDeposit: boolean; dailyLimitUsd: string; dailyUsedUsd: string; monthlyLimitUsd: string; monthlyUsedUsd: string }
 export async function apiLimits(): Promise<Limits | null> { try { return await req("GET", "/api/me/limits"); } catch { return null; } }
+
+export interface DeviceSession { id: string; created: string; current: boolean }
+export async function apiSessions(): Promise<DeviceSession[]> { return (await req("GET", "/api/me/sessions")).sessions ?? []; }
+export async function apiRevokeOtherSessions(): Promise<number> { const d = await req("POST", "/api/me/sessions/revoke-others"); return d.revoked ?? 0; }
 
 // ── real-time stream ─────────────────────────────────────────────────────────
 /**

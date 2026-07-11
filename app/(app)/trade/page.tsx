@@ -45,6 +45,10 @@ export default function TradeScreen() {
   const fee = usd * FEE_RATE;
   const primaryAsset = mode === "buy" ? to : from; // asset being bought/sold/swapped-from
 
+  // Spendable balance (USD): buy pays with the USDC/USDT cash leg; sell/swap spend `from`.
+  const cashAsset = assets?.find((a) => a.id === "usdc");
+  const availUsd = mode === "buy" ? (cashAsset ? cashAsset.holdings * cashAsset.price : 0) : (from ? from.holdings * from.price : 0);
+
   const units = primaryAsset ? usd / primaryAsset.price : 0;
   // What the user actually receives: buy → units of `to`; swap → units of `to`
   // (net of fee); sell → cash (net of fee).
@@ -56,7 +60,9 @@ export default function TradeScreen() {
         : primaryAsset
           ? `${formatAmount(units)} ${primaryAsset.symbol}`
           : "—";
-  const canReview = usd > 0 && !!primaryAsset && (mode !== "swap" || fromId !== toId);
+  // In real mode you can only trade what you hold (small tolerance for rounding).
+  const withinBalance = !isReal() || availUsd <= 0 || usd <= availUsd * 1.0001;
+  const canReview = usd > 0 && !!primaryAsset && (mode !== "swap" || fromId !== toId) && withinBalance;
 
   const modeLabel: Record<Mode, string> = { buy: "Buy", sell: "Sell", swap: "Swap" };
 
@@ -140,10 +146,22 @@ export default function TradeScreen() {
         {loading || !primaryAsset ? (
           <Skeleton className="mt-2 h-4 w-32" />
         ) : (
-          <p className="mt-2 text-sm text-muted tnum">
-            ≈ {formatAmount(units)} {primaryAsset.symbol}
+          <p className="mt-2 text-sm text-muted tnum" aria-live="polite">
+            {usd > 0 && quoting ? "Getting best price…" : usd > 0 ? <>You get ≈ {receiveReal}</> : <>≈ {formatAmount(units)} {primaryAsset.symbol}</>}
           </p>
         )}
+        {primaryAsset && availUsd > 0 && (
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className="text-faint tnum">Available {formatCurrency(availUsd)}</span>
+            {([0.25, 0.5, 1] as const).map((f) => (
+              <button key={f} onClick={() => setAmount(String(Math.floor(availUsd * f * 100) / 100))}
+                className="rounded-pill bg-surface-2 px-2.5 py-0.5 font-bold text-pos">
+                {f === 1 ? "MAX" : `${f * 100}%`}
+              </button>
+            ))}
+          </div>
+        )}
+        {usd > availUsd && availUsd > 0 && <p className="mt-1.5 text-xs font-semibold text-neg">Amount exceeds your available balance.</p>}
       </div>
 
       {/* Asset selector(s) */}
