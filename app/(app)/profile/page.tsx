@@ -156,8 +156,7 @@ export default function ProfileScreen() {
             value={theme} onChange={setTheme} ariaLabel="Theme" size="sm"
           />
         </div>
-        <RowToggle icon={<Bell size={18} />} label="Price alerts" desc="Big moves in your watchlist"
-          checked={settings.priceAlerts} onChange={(v) => updateSettings({ priceAlerts: v })} />
+        <RowLink icon={<Bell size={18} />} label="Price alerts" desc="Get notified on target prices" href="/settings/alerts" />
         <RowToggle icon={<ScrollText size={18} />} label="Product news" desc="New features & updates"
           checked={settings.productNews} onChange={(v) => updateSettings({ productNews: v })} />
       </Group>

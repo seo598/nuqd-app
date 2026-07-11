@@ -18,6 +18,39 @@ import { assetById } from "@/lib/mock-data";
 import { formatAmount, formatCurrency, formatDateTime, shortAddress } from "@/lib/format";
 import type { Transaction, TxType } from "@/lib/types";
 
+// Withdrawal lifecycle timeline (from the real backend status).
+function WithdrawTimeline({ status }: { status: string }) {
+  const rejected = status === "rejected" || status === "failed";
+  const order = ["pending_approval", "broadcast", "settled"];
+  const reached = rejected ? 1 : order.indexOf(status) + 1;
+  const steps = [
+    { key: "requested", label: "Requested" },
+    { key: "approved", label: "Approved & processing" },
+    { key: "settled", label: "Sent on-chain" },
+  ];
+  return (
+    <div className="mt-4">
+      <p className="mb-2 px-1 text-sm font-semibold text-muted">Status</p>
+      <Card className="p-4">
+        <ol className="space-y-3">
+          {steps.map((s, i) => {
+            const done = i < reached;
+            const isReject = rejected && i === 1;
+            return (
+              <li key={s.key} className="flex items-center gap-3">
+                <span className={`grid h-6 w-6 place-items-center rounded-full text-xs ${isReject ? "bg-neg-soft text-neg" : done ? "bg-accent-soft text-pos" : "border border-border text-faint"}`}>
+                  {isReject ? "×" : done ? "✓" : i + 1}
+                </span>
+                <span className={done || isReject ? "font-medium" : "text-muted"}>{isReject ? "Rejected" : s.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      </Card>
+    </div>
+  );
+}
+
 const TYPES: { value: TxType | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "buy", label: "Buy" },
@@ -140,9 +173,12 @@ export default function ActivityScreen() {
               {detail.toAssetId && (
                 <StatPair label="Received" value={assetById(detail.toAssetId)?.symbol ?? "—"} />
               )}
-              {detail.note && <StatPair label="Note" value={detail.note} />}
+              {detail.note && !detail.note.startsWith("wd:") && <StatPair label="Note" value={detail.note} />}
               <StatPair label="Reference" value={detail.id} />
             </Card>
+            {detail.type === "send" && detail.note?.startsWith("wd:") && (
+              <WithdrawTimeline status={detail.note.slice(3)} />
+            )}
           </div>
         )}
       </Sheet>

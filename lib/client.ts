@@ -77,7 +77,10 @@ export interface CoreMe {
   actor: CoreActor;
   kyc: { kyc_tier: string; sanctions_clear: boolean; frozen: boolean };
   profile: { name: string | null; email: string; joined: string | null };
-  portfolio: { items: Array<{ asset: string; amount: string; usd: string; unit: string }>; totalUsd: string };
+  portfolio: {
+    items: Array<{ asset: string; amount: string; usd: string; unit: string; avgCost?: string | null; pnlUsd?: string }>;
+    totalUsd: string; investedUsd?: string; unrealizedPnlUsd?: string; realizedPnlUsd?: string;
+  };
   balances: Record<string, string>;
   addresses: Record<string, string>;
   withdrawals: Array<{ id: string; asset_id: string; amount: string; destination: string; status: string; at: string }>;
@@ -125,6 +128,29 @@ export async function apiWithdraw(coreAsset: string, amount: string, destination
   const d = await req("POST", "/api/me/withdraw", { asset: coreAsset, amount: String(amount), destination, idempotencyKey: uuid() });
   invalidateMe(); return d;
 }
+
+// ── Wave 2: history, alerts, support, address book, limits ───────────────────
+export async function apiPortfolioHistory(range: string): Promise<Array<{ t: number; usd: number }>> {
+  return (await req("GET", `/api/me/portfolio/history?range=${encodeURIComponent(range)}`)).history ?? [];
+}
+export interface PriceAlert { id: string; asset_id: string; direction: "above" | "below"; target: string; active: boolean; at: string; triggered: string | null }
+export async function apiAlertsList(): Promise<PriceAlert[]> { return (await req("GET", "/api/me/alerts")).alerts ?? []; }
+export async function apiAlertCreate(coreAsset: string, direction: "above" | "below", target: string): Promise<PriceAlert> {
+  return await req("POST", "/api/me/alerts", { asset: coreAsset, direction, target: String(target) });
+}
+export async function apiAlertDelete(id: string): Promise<void> { await req("POST", "/api/me/alerts/delete", { id }); }
+
+export interface SupportTicket { id: string; subject: string; status: string; priority?: string; created_at?: string; messages?: Array<{ body: string; author: string; at: string }> }
+export async function apiSupportList(): Promise<SupportTicket[]> { return (await req("GET", "/api/me/support")).tickets ?? []; }
+export async function apiSupportOpen(subject: string, body: string): Promise<SupportTicket> { const t = await req("POST", "/api/me/support", { subject, body }); invalidateMe(); return t; }
+export async function apiSupportReply(ticketId: string, body: string): Promise<void> { await req("POST", "/api/me/support/reply", { ticketId, body }); }
+
+export interface SavedAddress { id: string; asset_id: string; address: string; active: boolean; active_from: string }
+export async function apiAllowlistList(): Promise<SavedAddress[]> { return (await req("GET", "/api/me/allowlist")).addresses ?? []; }
+export async function apiAllowlistDelete(id: string): Promise<void> { await req("POST", "/api/me/allowlist/delete", { id }); invalidateMe(); }
+
+export interface Limits { tier: string; canWithdraw: boolean; canDeposit: boolean; dailyLimitUsd: string; dailyUsedUsd: string; monthlyLimitUsd: string; monthlyUsedUsd: string }
+export async function apiLimits(): Promise<Limits | null> { try { return await req("GET", "/api/me/limits"); } catch { return null; } }
 
 // ── real-time stream ─────────────────────────────────────────────────────────
 /**

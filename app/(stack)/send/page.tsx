@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { useAsync } from "@/lib/use-async";
 import { getHoldings, placeOrder, isReal } from "@/lib/api";
+import { apiLimits, apiAllowlistList, toCore, type SavedAddress } from "@/lib/client";
 import { KycGate } from "@/components/kyc-gate";
 import { CONTACTS } from "@/lib/mock-data";
 import { formatAmount, formatCurrency, shortAddress } from "@/lib/format";
@@ -22,6 +23,8 @@ const NETWORK_FEE: Record<string, number> = { crypto: 2.4, token: 0.9, stablecoi
 export default function SendScreen() {
   const router = useRouter();
   const { data: assets, loading, error, reload } = useAsync(getHoldings, []);
+  const { data: limits } = useAsync(() => (isReal() ? apiLimits() : Promise.resolve(null)), []);
+  const { data: saved } = useAsync<SavedAddress[]>(() => (isReal() ? apiAllowlistList() : Promise.resolve([])), []);
 
   const [assetId, setAssetId] = useState("");
   const [amount, setAmount] = useState("");
@@ -41,6 +44,10 @@ export default function SendScreen() {
   const maxUnits = asset?.holdings ?? 0;
   const overBalance = amt > maxUnits;
   const canReview = !!asset && amt > 0 && !overBalance && recipient.length >= 8;
+  // Address book: real saved (allow-listed) addresses for this asset, else mock contacts.
+  const book = isReal()
+    ? (saved ?? []).filter((s) => !asset || s.asset_id === toCore(asset.id)).map((s) => ({ name: s.active ? "Saved address" : "Cooling-off", address: s.address }))
+    : CONTACTS;
 
   async function confirm() {
     if (!asset) return;
@@ -145,6 +152,11 @@ export default function SendScreen() {
               <span className="text-muted">Estimated network fee</span>
               <span className="font-semibold tnum">{formatCurrency(fee)}</span>
             </div>
+            {limits && (
+              <p className="mt-2 text-center text-xs text-faint tnum">
+                Daily limit: {formatCurrency(Number(limits.dailyUsedUsd))} of {formatCurrency(Number(limits.dailyLimitUsd))} used
+              </p>
+            )}
 
             <div className="flex-1" />
             <Button fullWidth size="lg" className="mt-4" disabled={!canReview} onClick={() => setReview(true)}>
@@ -182,7 +194,8 @@ export default function SendScreen() {
       {/* Address book */}
       <Sheet open={pickContact} onClose={() => setPickContact(false)} title="Address book">
         <div className="divide-y divide-border/60">
-          {CONTACTS.map((c) => (
+          {book.length === 0 && <p className="py-6 text-center text-sm text-muted">No saved addresses yet. Paste one above — it&apos;s saved after your first send.</p>}
+          {book.map((c) => (
             <button
               key={c.address}
               className="flex w-full items-center gap-3 py-3 text-left active:bg-surface-2"

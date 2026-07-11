@@ -22,7 +22,7 @@ import {
 import { CG_IDS, cgChart, cgMarkets, cgTopCoins, downsample } from "./coingecko";
 import { fetchCryptoNews } from "./news";
 import {
-  isReal, apiMe, apiSwap, apiWithdraw, apiQuote,
+  isReal, apiMe, apiSwap, apiWithdraw, apiQuote, apiPortfolioHistory,
   toApp, toCore, tradable, CASH,
 } from "./client";
 import type {
@@ -102,11 +102,12 @@ async function loadAssets(): Promise<Asset[]> {
   try {
     const me = await apiMe();
     const bal = me.balances ?? {};
+    // Real weighted-average cost basis per asset from the backend → real P&L.
+    const basis = new Map((me.portfolio.items ?? []).map((i) => [i.asset, i.avgCost]));
     return priced.map((a) => {
       const amt = Number(bal[toCore(a.id)] ?? 0);
-      // No cost-basis tracking server-side yet → anchor avgCost to the live price
-      // so P&L reads ~0 rather than showing a fabricated gain.
-      return { ...a, holdings: amt, avgCost: amt > 0 ? a.price : a.avgCost };
+      const avg = basis.get(toCore(a.id));
+      return { ...a, holdings: amt, avgCost: avg != null ? Number(avg) : (amt > 0 ? a.price : a.avgCost) };
     });
   } catch {
     // Backend unreachable: show real prices with zero holdings rather than mock funds.
@@ -126,10 +127,22 @@ export async function getPortfolio(range: Range): Promise<PortfolioSummary> {
     const a = assets.find((x) => x.id === p.assetId);
     return s + (a ? p.balance * a.price : 0);
   }, 0);
-  // Illustrative curve, anchored to end at the real current total.
-  const raw = PORTFOLIO_SERIES[range] ?? PORTFOLIO_SERIES["1W"];
-  const k = raw[raw.length - 1] ? total / raw[raw.length - 1] : 1;
-  const series = raw.map((v) => v * k);
+  let series: number[];
+  if (isReal()) {
+    // Real value history from backend portfolio snapshots.
+    try {
+      const hist = await apiPortfolioHistory(range);
+      series = hist.length >= 2 ? hist.map((h) => h.usd) : [total, total];
+      if (series.length) series[series.length - 1] = total; // freshest point = live total
+    } catch {
+      series = [total, total];
+    }
+  } else {
+    // Illustrative curve (mock), anchored to end at the current total.
+    const raw = PORTFOLIO_SERIES[range] ?? PORTFOLIO_SERIES["1W"];
+    const k = raw[raw.length - 1] ? total / raw[raw.length - 1] : 1;
+    series = raw.map((v) => v * k);
+  }
   return {
     totalUsd: total,
     availableUsd: total - earning,
@@ -194,7 +207,7 @@ async function realActivity(): Promise<Transaction[]> {
   }
   for (const w of me.withdrawals ?? []) {
     const id = toApp(w.asset_id), amt = Number(w.amount);
-    rows.push({ id: `w_${w.id}`, type: "send", assetId: id, amount: amt, usd: amt * priceOf(id), date: iso(w.at), status: w.status === "settled" ? "completed" : w.status === "rejected" || w.status === "failed" ? "failed" : "pending", counterparty: w.destination });
+    rows.push({ id: `w_${w.id}`, type: "send", assetId: id, amount: amt, usd: amt * priceOf(id), date: iso(w.at), status: w.status === "settled" ? "completed" : w.status === "rejected" || w.status === "failed" ? "failed" : "pending", counterparty: w.destination, note: `wd:${w.status}` });
   }
   for (const s of me.swaps ?? []) {
     const from = toApp(s.from_asset), to = toApp(s.to_asset), amt = Number(s.fa);
