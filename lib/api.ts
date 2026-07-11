@@ -363,6 +363,7 @@ export interface OrderInput {
   toAssetId?: string;   // swap destination (app id)
   destination?: string; // send recipient address
   minToAmount?: number; // slippage floor (to-asset units) for buy/sell/swap
+  pin?: string;         // transaction PIN (send/withdraw) when the account has one
 }
 
 export interface OrderQuote { toAmount: number; rate: number; feeUsd: number; usdValue: number; receiveAsset: string }
@@ -409,7 +410,7 @@ export async function placeOrder(input: OrderInput): Promise<Transaction> {
     if (input.type === "send") {
       if (!input.destination) throw new Error("Recipient address required");
       if (!tradable(input.assetId)) throw new Error(`${a.symbol} withdrawals aren't supported yet`);
-      await apiWithdraw(toCore(input.assetId), String(units), input.destination);
+      await apiWithdraw(toCore(input.assetId), String(units), input.destination, input.pin);
       return { id: `w_${Date.now()}`, type: "send", assetId: input.assetId, amount: units, usd: input.amountUsd, date: new Date().toISOString(), status: "pending", counterparty: input.destination };
     }
     // buy / sell / swap → a ledger swap

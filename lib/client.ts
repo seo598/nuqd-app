@@ -59,8 +59,10 @@ export async function apiChangePassword(currentPassword: string, newPassword: st
 export async function apiUpdateProfile(name: string): Promise<void> {
   await req("POST", "/api/me/profile", { name }); invalidateMe();
 }
-export async function apiLogin(email: string, password: string): Promise<CoreActor> {
-  const d = await req("POST", "/api/login", { email, password }); setToken(d.token); invalidateMe(); return d.actor;
+export async function apiLogin(email: string, password: string, totp?: string): Promise<CoreActor | { mfaRequired: true }> {
+  const d = await req("POST", "/api/login", { email, password, totp });
+  if (d.mfaRequired) return { mfaRequired: true };
+  setToken(d.token); invalidateMe(); return d.actor;
 }
 export async function apiLogout(): Promise<void> {
   try { await req("POST", "/api/logout"); } catch { /* best effort */ }
@@ -123,9 +125,9 @@ export async function apiSwap(fromCore: string, toCore: string, fromAmount: stri
   const d = await req("POST", "/api/me/swap", { fromAsset: fromCore, toAsset: toCore, fromAmount: String(fromAmount), minToAmount, idempotencyKey: uuid() });
   invalidateMe(); return d;
 }
-export async function apiWithdraw(coreAsset: string, amount: string, destination: string): Promise<{ withdrawalId: string; status: string }> {
+export async function apiWithdraw(coreAsset: string, amount: string, destination: string, pin?: string): Promise<{ withdrawalId: string; status: string }> {
   await req("POST", "/api/me/allowlist", { asset: coreAsset, address: destination });
-  const d = await req("POST", "/api/me/withdraw", { asset: coreAsset, amount: String(amount), destination, idempotencyKey: uuid() });
+  const d = await req("POST", "/api/me/withdraw", { asset: coreAsset, amount: String(amount), destination, idempotencyKey: uuid(), pin });
   invalidateMe(); return d;
 }
 
@@ -155,6 +157,54 @@ export async function apiLimits(): Promise<Limits | null> { try { return await r
 export interface DeviceSession { id: string; created: string; current: boolean }
 export async function apiSessions(): Promise<DeviceSession[]> { return (await req("GET", "/api/me/sessions")).sessions ?? []; }
 export async function apiRevokeOtherSessions(): Promise<number> { const d = await req("POST", "/api/me/sessions/revoke-others"); return d.revoked ?? 0; }
+
+// ── account security: 2FA (TOTP), transaction PIN, biometric ─────────────────
+export interface SecurityStatus { mfa: boolean; pin: boolean; biometric: boolean }
+export async function apiSecurity(): Promise<SecurityStatus> { return await req("GET", "/api/me/security"); }
+export async function apiMfaEnroll(): Promise<{ secret: string; uri: string }> { return await req("POST", "/api/me/mfa/enroll"); }
+export async function apiMfaConfirm(code: string): Promise<void> { await req("POST", "/api/me/mfa/confirm", { code }); }
+export async function apiMfaDisable(): Promise<void> { await req("POST", "/api/me/mfa/disable"); }
+export async function apiSetPin(pin: string): Promise<void> { await req("POST", "/api/me/pin", { pin }); }
+export async function apiDisablePin(pin: string): Promise<void> { await req("POST", "/api/me/pin/disable", { pin }); }
+export async function apiSetBiometric(on: boolean): Promise<void> { await req("POST", "/api/me/biometric", { on }); }
+
+// Biometric via WebAuthn platform authenticator (Face ID / Touch ID / fingerprint).
+// The credential lives on the device; we keep its id locally for the unlock gate.
+const BIO_KEY = "nuqd-bio-cred";
+export function biometricAvailable(): boolean {
+  return typeof window !== "undefined" && !!window.PublicKeyCredential && !!navigator.credentials;
+}
+function randChallenge(): Uint8Array { const a = new Uint8Array(32); crypto.getRandomValues(a); return a; }
+export async function registerBiometric(userId: string, email: string): Promise<boolean> {
+  if (!biometricAvailable()) throw new Error("This device doesn't support biometric unlock");
+  const cred = await navigator.credentials.create({
+    publicKey: {
+      challenge: randChallenge() as BufferSource,
+      rp: { name: "NUQD" },
+      user: { id: new TextEncoder().encode(userId).slice(0, 64) as BufferSource, name: email, displayName: email },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+      timeout: 60000,
+    },
+  }) as PublicKeyCredential | null;
+  if (!cred) return false;
+  try { localStorage.setItem(BIO_KEY, cred.id); } catch { /* private mode */ }
+  return true;
+}
+export function biometricEnabledLocally(): boolean { try { return !!localStorage.getItem(BIO_KEY); } catch { return false; } }
+export function clearBiometricLocal(): void { try { localStorage.removeItem(BIO_KEY); } catch { /* */ } }
+/** Prompt the device biometric to unlock (assertion against the stored credential). */
+export async function biometricUnlock(): Promise<boolean> {
+  const id = (() => { try { return localStorage.getItem(BIO_KEY); } catch { return null; } })();
+  if (!id || !biometricAvailable()) return true; // nothing registered → no gate
+  try {
+    const b = Uint8Array.from(atob(id.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+    const assertion = await navigator.credentials.get({
+      publicKey: { challenge: randChallenge() as BufferSource, allowCredentials: [{ type: "public-key", id: b as BufferSource }], userVerification: "required", timeout: 60000 },
+    });
+    return !!assertion;
+  } catch { return false; }
+}
 
 // ── real-time stream ─────────────────────────────────────────────────────────
 /**

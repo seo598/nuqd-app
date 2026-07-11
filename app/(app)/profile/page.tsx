@@ -136,12 +136,7 @@ export default function ProfileScreen() {
 
       {/* Security */}
       <Group title="Security">
-        <RowToggle icon={<Fingerprint size={18} />} label="Biometric unlock" desc="Face ID / fingerprint"
-          checked={settings.biometrics} onChange={(v) => updateSettings({ biometrics: v })} />
-        <RowToggle icon={<Shield size={18} />} label="Two-factor authentication" desc="Extra layer on sign-in"
-          checked={settings.twoFactor} onChange={(v) => updateSettings({ twoFactor: v })} />
-        <RowToggle icon={<KeyRound size={18} />} label="Transaction PIN" desc="Confirm each transfer"
-          checked={settings.transactionPin} onChange={(v) => updateSettings({ transactionPin: v })} />
+        <RowLink icon={<Fingerprint size={18} />} label="Security & 2FA" desc="Biometrics, authenticator, transaction PIN" href="/settings/security" />
         <RowLink icon={<Lock size={18} />} label="Change password" href="/settings/password" />
         <RowLink icon={<Smartphone size={18} />} label="Connected devices" desc="Active sign-ins" href="/settings/devices" />
       </Group>

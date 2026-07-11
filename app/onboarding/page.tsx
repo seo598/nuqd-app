@@ -85,6 +85,8 @@ function AuthStep({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsMfa, setNeedsMfa] = useState(false);
+  const [totp, setTotp] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +99,10 @@ function AuthStep({
     }
     setBusy(true);
     try {
-      const actor = mode === "create" ? await apiRegister(email.trim(), password, name.trim() || undefined) : await apiLogin(email.trim(), password);
+      const actor = mode === "create"
+        ? await apiRegister(email.trim(), password, name.trim() || undefined)
+        : await apiLogin(email.trim(), password, needsMfa ? totp.trim() : undefined);
+      if ("mfaRequired" in actor) { setNeedsMfa(true); setBusy(false); return; } // ask for the 2FA code
       setSession({ id: actor.id, email: actor.email });
       onDone();
     } catch (err) {
@@ -121,6 +126,13 @@ function AuthStep({
           )}
           <Field label="Email" type="email" placeholder="you@email.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <Field label="Password" type="password" placeholder={mode === "create" ? "At least 8 characters" : "Your password"} autoComplete={mode === "create" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} />
+          {needsMfa && (
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-muted">Authenticator code</span>
+              <input inputMode="numeric" autoFocus maxLength={6} placeholder="123456" value={totp} onChange={(e) => setTotp(e.target.value.replace(/\D/g, ""))}
+                className="w-full rounded-tile border border-border bg-surface px-4 py-3 text-center font-mono text-xl tracking-[0.4em] text-text outline-none focus:border-accent" />
+            </label>
+          )}
           {error && <p className="text-sm font-semibold text-neg" role="alert">{error}</p>}
           <Button type="submit" fullWidth size="lg" className="!mt-5" loading={busy}>
             {mode === "create" ? "Create account" : "Sign in"}

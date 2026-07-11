@@ -53,8 +53,18 @@ export default function SendScreen() {
     if (!asset) return;
     setSubmitting(true);
     setSendError(null);
+    const order = { type: "send" as const, assetId: asset.id, amountUsd: usd, amountUnits: amt, destination: recipient.trim() };
     try {
-      await placeOrder({ type: "send", assetId: asset.id, amountUsd: usd, amountUnits: amt, destination: recipient.trim() });
+      try {
+        await placeOrder(order);
+      } catch (e) {
+        // A transaction PIN gate → ask for it and retry once.
+        if (e instanceof Error && /PIN/i.test(e.message)) {
+          const p = prompt("Enter your transaction PIN to confirm this withdrawal:");
+          if (!p) throw new Error("Transaction PIN required");
+          await placeOrder({ ...order, pin: p.trim() });
+        } else throw e;
+      }
       setDone(true);
     } catch (e) {
       setSendError(e instanceof Error ? e.message : "Send failed — please try again.");
