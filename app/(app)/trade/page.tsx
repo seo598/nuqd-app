@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,9 @@ import { StatPair } from "@/components/primitives";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { useAsync } from "@/lib/use-async";
-import { getAssets, placeOrder } from "@/lib/api";
+import { getAssets, placeOrder, quoteOrder, isReal } from "@/lib/api";
+import type { OrderQuote } from "@/lib/api";
+import { KycGate } from "@/components/kyc-gate";
 import { formatAmount, formatCurrency } from "@/lib/format";
 import type { Asset, TxType } from "@/lib/types";
 
@@ -32,6 +34,10 @@ export default function TradeScreen() {
   const [review, setReview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [quote, setQuote] = useState<OrderQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const SLIPPAGE = 0.01; // 1% floor
 
   const from = assets?.find((a) => a.id === fromId);
   const to = assets?.find((a) => a.id === toId);
@@ -54,14 +60,44 @@ export default function TradeScreen() {
 
   const modeLabel: Record<Mode, string> = { buy: "Buy", sell: "Sell", swap: "Swap" };
 
+  // Real, debounced quote from the backend (the true executed rate/fee/received),
+  // replacing the client-side FEE_RATE estimate in real mode.
+  useEffect(() => {
+    if (!isReal() || !canReview) { setQuote(null); return; }
+    let alive = true;
+    setQuoting(true);
+    const t = setTimeout(async () => {
+      const q = await quoteOrder({ type: mode, assetId: primaryAsset!.id, amountUsd: usd, amountUnits: units, toAssetId: mode === "swap" ? toId : undefined });
+      if (alive) { setQuote(q); setQuoting(false); }
+    }, 350);
+    return () => { alive = false; clearTimeout(t); setQuoting(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, usd, fromId, toId, canReview]);
+
+  // Fee + received: real quote when available, else the client-side estimate.
+  const feeUsd = quote ? quote.feeUsd : fee;
+  const receiveReal = quote
+    ? (mode === "sell" ? formatCurrency(quote.toAmount) : `${formatAmount(quote.toAmount)} ${(mode === "swap" ? to : primaryAsset)?.symbol ?? ""}`)
+    : receiveText;
+
   async function confirm() {
     setSubmitting(true);
+    setOrderError(null);
     try {
       const type: TxType = mode;
-      await placeOrder({ type, assetId: primaryAsset!.id, amountUsd: usd });
+      // Slippage floor: never accept less than 1% below the shown quote.
+      const minToAmount = quote ? quote.toAmount * (1 - SLIPPAGE) : undefined;
+      await placeOrder({
+        type,
+        assetId: primaryAsset!.id,
+        amountUsd: usd,
+        amountUnits: units,
+        toAssetId: mode === "swap" ? toId : undefined,
+        minToAmount,
+      });
       setDone(true);
-    } catch {
-      // In a real app show a toast; keep the review open to retry.
+    } catch (e) {
+      setOrderError(e instanceof Error ? e.message : "Order failed — please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -76,6 +112,7 @@ export default function TradeScreen() {
   }
 
   return (
+    <KycGate action="trade">
     <div className="flex min-h-full flex-col px-4 pb-6">
       <header className="py-4">
         <h1 className="font-display text-2xl font-bold">Trade</h1>
@@ -201,31 +238,34 @@ export default function TradeScreen() {
                         : "—"
                   }
                 />
-                <StatPair label="You receive" value={receiveText} />
+                <StatPair label="You receive" value={quoting ? "…" : receiveReal} />
                 <StatPair label="Rate" value={primaryAsset ? formatCurrency(primaryAsset.price) : "—"} />
                 <StatPair label="Network" value="NUQD instant" />
               </div>
               <hr className="my-3 border-border" />
               <div className="space-y-1.5 text-sm">
                 <Line label="Subtotal" value={formatCurrency(usd)} />
-                <Line label={`Fee (${(FEE_RATE * 100).toFixed(1)}%)`} value={formatCurrency(fee)} />
+                <Line label={quote ? "Fee (spread)" : `Fee (${(FEE_RATE * 100).toFixed(1)}%)`} value={formatCurrency(feeUsd)} />
                 {mode === "buy" ? (
-                  <Line label="Total to pay" value={formatCurrency(usd + fee)} strong />
+                  <Line label="Total to pay" value={formatCurrency(usd + feeUsd)} strong />
                 ) : (
-                  <Line label="Net received" value={formatCurrency(Math.max(0, usd - fee))} strong />
+                  <Line label="Net received" value={formatCurrency(Math.max(0, usd - feeUsd))} strong />
                 )}
               </div>
+              {isReal() && <p className="mt-2 text-xs text-faint">Protected by a 1% slippage floor · rate refreshes live.</p>}
             </Card>
+            {orderError && <p className="mb-2 text-center text-sm font-semibold text-neg" role="alert">{orderError}</p>}
             <Button fullWidth size="lg" loading={submitting} onClick={confirm}>
               Confirm {modeLabel[mode].toLowerCase()}
             </Button>
             <p className="mt-2 text-center text-xs text-faint">
-              Rate held for 30s. Demo order — no real funds move.
+              {isReal() ? "Executed instantly against NUQD liquidity. Simulated custody." : "Rate held for 30s. Demo order — no real funds move."}
             </p>
           </>
         )}
       </Sheet>
     </div>
+    </KycGate>
   );
 }
 

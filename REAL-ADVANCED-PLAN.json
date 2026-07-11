@@ -1,0 +1,1083 @@
+{
+  "summary": "Audit NUQD app + backend for every remaining mock/gap and design one prioritized plan to make it fully real and advanced",
+  "agentCount": 4,
+  "logs": [],
+  "result": {
+    "appMocks": {
+      "items": [
+        {
+          "area": "Portfolio chart (Home + Wallet)",
+          "file": "lib/api.ts:129-132 (+ lib/mock-data.ts:79-86 PORTFOLIO_SERIES)",
+          "currentState": "getPortfolio() returns a REAL end-total but a fabricated curve: it takes the seeded mock series PORTFOLIO_SERIES[range] and rescales it so only the last point equals the real total. Every historical point on the Home/Wallet line chart is invented noise; the 1H/1D/1W/1M/1Y/All shapes are all the same 6 mock seeds. Only changeUsd/changePct (24h, holdings-weighted) are real.",
+          "realReplacement": "Backend must record portfolio valuation snapshots (a balances-x-price time series) and expose e.g. GET /api/me/portfolio/history?range=; the app then plots the true curve. No such endpoint exists today — needs a scoped backend addition (periodic snapshot job or on-the-fly reconstruction from swaps/deposits/withdrawals + historical prices).",
+          "severity": "high"
+        },
+        {
+          "area": "Cost basis / Unrealized P&L (Wallet)",
+          "file": "lib/api.ts:108-109; app/(app)/wallet/page.tsx:33-36,171-172,196-199; lib/mock-data.ts:45-70 (avgCost)",
+          "currentState": "avgCost is fake. In real mode api.ts anchors avgCost to the current live price so per-asset and total P&L read ~0; in mock mode it uses seeded avgCost (e.g. BTC 41800). Wallet's 'Unrealized P&L', 'Total invested', and each asset's '+/-$ (%)' row are therefore fabricated, not derived from actual buy prices.",
+          "realReplacement": "Backend needs cost-basis tracking (weighted-avg or lot-based) computed from the ledger's swap/deposit history, surfaced on /api/me (per-asset avgCost + realized/unrealized P&L). Then Wallet shows true P&L. Requires a backend addition — the swaps table has from/to amounts but no cost-basis rollup yet.",
+          "severity": "high"
+        },
+        {
+          "area": "Trade — quote / slippage / fee",
+          "file": "app/(app)/trade/page.tsx:21,39-53,213-214,228,282-311; lib/api.ts:360-389",
+          "currentState": "placeOrder() calls /api/me/swap directly and never calls the existing /api/me/quote. The 0.5% FEE_RATE, the 'Rate' (shown as spot price), 'You receive', and 'Network: NUQD instant' are all computed client-side and cosmetic; no minToAmount is sent so there is no slippage protection, and the success screen shows locally-computed units, not the swap's actual r.toAmount. Real executed amount (with server spreadBps=50) can differ from what was shown.",
+          "realReplacement": "Call apiQuote(from,to,amount) to display the real rate/fee/received before confirm, pass minToAmount into apiSwap for slippage protection, and render r.toAmount/r.fee/r.rate from the swap response on the receipt. All endpoints already exist (/api/me/quote, /api/me/swap).",
+          "severity": "high"
+        },
+        {
+          "area": "Send — network fee",
+          "file": "app/(stack)/send/page.tsx:19,39,142-145,240-247; lib/api.ts:370",
+          "currentState": "NETWORK_FEE is a hardcoded cosmetic map ({crypto:2.4, token:0.9, stablecoin:0.5}) shown as 'Estimated network fee' and added into the displayed Total, but apiWithdraw() sends fee implicitly '0' to the backend, so the fee shown is neither real nor charged.",
+          "realReplacement": "Fetch a real network-fee estimate (per-asset) from the backend and pass it as the withdraw fee, or read the fee the backend actually applies and display that. Backend withdraw accepts a fee param but the client hardcodes none.",
+          "severity": "high"
+        },
+        {
+          "area": "Earn (whole feature)",
+          "file": "app/(app)/earn/page.tsx (all); lib/api.ts:225-231; lib/mock-data.ts:89,91-93,142-146",
+          "currentState": "Earn is entirely non-functional 'coming soon'. EARN_POSITIONS = [] always, so getEarn/getPortfolio earning is $0; APY_TIERS and TOP_EARNING rates (up to 14%) are hardcoded marketing numbers; the 'Notify me' button only flips local state. Home's Earn summary card is a static 'Coming soon' string, and getPortfolio.availableUsd == totalUsd because earning is always 0.",
+          "realReplacement": "Needs a real (hedged, CBB-compliant 'designed to' framed) earn/staking product on the backend: subscribe/redeem endpoints, accrual, and positions on /api/me. Until then the hardcoded APYs should be labelled indicative (they are) but there is no backend behind any of it.",
+          "severity": "high"
+        },
+        {
+          "area": "KYC status never surfaced / no verification flow",
+          "file": "lib/client.ts:72 (kyc typed but unused); app/(stack)/settings/identity/page.tsx:7-11,22-26; app/(app)/profile/page.tsx:66-71,124",
+          "currentState": "me.kyc {kyc_tier, sanctions_clear, frozen} is fetched by apiMe but never read in the UI (grep confirms zero consumers). The Identity screen hardcodes 'Verified · Level 2', the profile shows a hardcoded BadgeCheck 'Verified' and 'Identity verification: Verified', regardless of the real tier. There is no tier0 'verification in review' gate UI and no way to start KYC — a tier0 user just hits a raw 'KYC required to trade' error on Trade/Send. The reference backend web app shows a proper pending-review banner; this app doesn't.",
+          "realReplacement": "Read me.kyc: show real tier/frozen state on Profile + Identity, gate Trade/Send with a friendly 'verification in review' state for tier0, and add a KYC-submission flow (a real KYC provider adapter, or at minimum surface the demo AUTO_KYC/admin-approve path). Backend already tracks and enforces tiers.",
+          "severity": "high"
+        },
+        {
+          "area": "Security settings — biometrics / 2FA / transaction PIN",
+          "file": "lib/store.ts:77-87; app/(app)/profile/page.tsx:130-135",
+          "currentState": "All three Security toggles only flip Zustand booleans persisted to localStorage (default biometrics:true, twoFactor:true, transactionPin:false). Nothing enforces them: no WebAuthn/passkey biometric unlock, no TOTP/2FA challenge on login (backend auth is password + session token only), and the transaction PIN is never requested before any trade/send. They are pure cosmetic switches.",
+          "realReplacement": "Real 2FA needs a backend TOTP enrol/verify flow gating /api/login; biometric unlock needs WebAuthn/passkey registration; transaction PIN needs a stored PIN hash checked before withdraw/swap. None exist server-side yet — each is a scoped backend addition.",
+          "severity": "high"
+        },
+        {
+          "area": "Change password",
+          "file": "app/(stack)/settings/password/page.tsx (all)",
+          "currentState": "The form validates strength/match locally and shows 'Password updated' without ever calling the backend — there is no change-password endpoint and the current-password field is ignored. Passwords are not actually changed.",
+          "realReplacement": "Add POST /api/me/password (verify current, set new via the existing scrypt auth) and call it from this screen.",
+          "severity": "high"
+        },
+        {
+          "area": "Rewards / points / tasks",
+          "file": "app/(stack)/rewards/page.tsx:10-24 (all)",
+          "currentState": "Entire Rewards screen is fabricated: REFERRAL_CODE 'LAYLA-NUQD' hardcoded, TASKS list with fixed points and done-flags (profile/verify marked done, others not) computed purely client-side, PERKS static, and the points hero/progress bar derive from these constants. Nothing is persisted or earned.",
+          "realReplacement": "Needs a backend rewards/quests service (points ledger, task completion events, referral attribution) exposed on /api/me. Currently no backend at all.",
+          "severity": "high"
+        },
+        {
+          "area": "Loyalty tier (Silver/Gold/Platinum) + referral in Profile",
+          "file": "app/(app)/profile/page.tsx:23,27-31,75-119; components/top-bar.tsx:29,37",
+          "currentState": "tierFor() derives a cosmetic Silver/Gold/Platinum tier and progress bar purely from live portfolio value with hardcoded thresholds; the referral card's code ('LAYLA-NUQD') and 'Referrals: 12' / 'Member since 2024' quick-stats are hardcoded. The TopBar rewards/notifications unread dots are always-on decorations, not driven by real unread counts.",
+          "realReplacement": "Back tier/loyalty with a real fee-tier/loyalty model and referral program on the backend; drive quick-stats from real account data (joined date is available in backend customerDetail but not on /api/me); drive the TopBar unread dot from me.notifications.unread.",
+          "severity": "high"
+        },
+        {
+          "area": "Payment methods / fiat on-ramp",
+          "file": "app/(stack)/settings/payment/page.tsx:8-12,40 (all)",
+          "currentState": "METHODS is a hardcoded list of fake Visa/Mastercard/Bank-of-Bahrain entries; 'Add payment method' is a no-op button. Home's 'Add funds' just routes to /trade (a crypto buy), and real funding only happens via the 'Add test funds' simulated-custody credit on Receive. There is no fiat deposit/withdrawal rail at all.",
+          "realReplacement": "A real card/bank on-ramp + off-ramp integration (PSP/bank adapter) with stored payment methods on the backend. This is a licensing-gated addition; today it is 100% cosmetic.",
+          "severity": "high"
+        },
+        {
+          "area": "Contact support (real ticketing unused)",
+          "file": "app/(stack)/settings/support/page.tsx:38-64",
+          "currentState": "The support form just sets sent=true and shows 'Message sent'; nothing is transmitted. Meanwhile the backend already has real customer ticketing: GET/POST /api/me/support and POST /api/me/support/reply (server.ts:272,277,278).",
+          "realReplacement": "Wire the form to POST /api/me/support and list existing tickets via GET /api/me/support (add these to lib/client.ts). Endpoint exists; app just doesn't call it.",
+          "severity": "medium"
+        },
+        {
+          "area": "Connected devices / sessions",
+          "file": "app/(stack)/settings/devices/page.tsx:11-14,52-56",
+          "currentState": "Hardcoded two devices (iPhone 15 Pro / MacBook Air, 'Manama'); 'Remove' and 'Sign out all other devices' only mutate local state. The backend records logins (recordLogin with ip/ua) but exposes no per-user sessions/devices list or revoke endpoint.",
+          "realReplacement": "Add GET /api/me/sessions and POST /api/me/sessions/:id/revoke (data already captured at login) and drive this screen from it.",
+          "severity": "medium"
+        },
+        {
+          "area": "Profile / TopBar identity is hardcoded, ignores session",
+          "file": "app/(app)/profile/page.tsx:64-70; components/top-bar.tsx:16; app/(app)/card/page.tsx:132; app/(stack)/settings/personal/page.tsx:24-27",
+          "currentState": "The signed-in user's real email lives in the Zustand session (user.email) but the UI shows hardcoded 'Layla Karim' / 'layla@email.com' everywhere (Profile header, avatar, TopBar avatar, Card holder name, Personal-details defaultValues). Personal-details 'Save changes' is a local no-op.",
+          "realReplacement": "Render name/email from the session/me.actor; add POST /api/me/profile to persist personal-detail edits (name/phone/country — none of which the backend stores today).",
+          "severity": "medium"
+        },
+        {
+          "area": "Onboarding — full name collected then discarded",
+          "file": "app/onboarding/page.tsx:120; lib/client.ts:53",
+          "currentState": "The create-account form collects 'Full name' but apiRegister only sends {email, password}; the name is dropped and never stored, which is why the profile later shows a hardcoded name.",
+          "realReplacement": "Extend /api/register to accept and store a display name (users table has none today) and pass it through, or drop the field.",
+          "severity": "medium"
+        },
+        {
+          "area": "Address book / CONTACTS (Send)",
+          "file": "app/(stack)/send/page.tsx:16,181-201; lib/mock-data.ts:96-100",
+          "currentState": "The Send 'Address book' sheet is a hardcoded CONTACTS array (Layla/Omar/Cold wallet). It's not saved, not per-user, and unrelated to the backend allow-list. Meanwhile every real send silently calls /api/me/allowlist then /api/me/withdraw, so the user's actual allow-listed addresses are never shown or reused here.",
+          "realReplacement": "Persist a real per-user address book (backend), and surface the backend allow-list (me could return allowlisted addresses) as the contact source for Send.",
+          "severity": "medium"
+        },
+        {
+          "area": "Receive QR code (custodial)",
+          "file": "app/(stack)/receive/page.tsx:68-72; components/mock-qr.tsx (all)",
+          "currentState": "The custodial Receive screen renders MockQR — a deterministic but NON-scannable pseudo-QR — over the real deposit address string. (Note: the On-chain LiveWallet uses a real components/qr-code.tsx, so a working QR generator already exists in the repo.)",
+          "realReplacement": "Swap MockQR for the real QrCode component already used in live-wallet.tsx so the deposit address is actually scannable.",
+          "severity": "medium"
+        },
+        {
+          "area": "Notifications — mock seed + fabricated kinds + raw timestamps",
+          "file": "app/(stack)/notifications/page.tsx:29-35,47-54; lib/api.ts (apiNotifications)",
+          "currentState": "In mock mode a 5-item SEED (Bitcoin +5%, reward points, new device, etc.) is shown. In real mode only backend kinds map (deposit/withdrawal/swap→transaction, kyc/freeze→security); the app's 'price', 'reward', 'product' kinds are never produced by the backend, so price-alert/reward/product notifications don't exist. Also real items show n.at raw ('YYYY-MM-DD HH24:MI') as the 'ago' string with no relative formatting.",
+          "realReplacement": "Add backend notification producers for price alerts (ties to the dormant priceAlerts setting) and product news; format timestamps relatively. Deposit/withdraw/swap/kyc notifications are already real.",
+          "severity": "medium"
+        },
+        {
+          "area": "Explore — AI intelligence, top-earning APYs, opportunities",
+          "file": "app/(app)/explore/page.tsx:30-53,154-171,176-206; lib/mock-data.ts:142-157; lib/api.ts:287-323",
+          "currentState": "'AI market intelligence' card is a static 'New' teaser with no behaviour; 'Top earning assets' APY badges come from hardcoded TOP_EARNING/APY_TIERS; the single 'Opportunities' entry is a hardcoded coming-soon NUQD-coin banner. Gainers/losers/trending prices ARE real (CoinGecko).",
+          "realReplacement": "Either build real AI signals/opportunities feeds or clearly keep them as teasers; APYs should come from the real Earn product once it exists.",
+          "severity": "medium"
+        },
+        {
+          "area": "Home — promos, NUQD Pro, AI summary",
+          "file": "app/(app)/home/page.tsx:119,125-135,186-191; lib/mock-data.ts:160-165 (PROMOS)",
+          "currentState": "The promo carousel is a hardcoded PROMOS array; 'NUQD Pro — Advanced trading terminal' and 'Get an AI summary' are static 'Coming soon' rows with no backend; Earn summary card value is the literal string 'Coming soon'.",
+          "realReplacement": "Drive promos/announcements from a backend CMS/config; build or remove the NUQD Pro and AI-summary features. Watchlist prices and News are already real.",
+          "severity": "low"
+        },
+        {
+          "area": "Real-time updates unused (SSE)",
+          "file": "lib/client.ts:84-91 (6s poll cache); backend server.ts:232 (/api/me/events)",
+          "currentState": "The backend exposes an authenticated SSE stream /api/me/events that pushes on every deposit/swap/withdrawal, but the app never opens an EventSource — it relies on a 6-second apiMe cache and per-screen refetch, so balances/activity/notifications don't update live (e.g. after admin settles a withdrawal or credits a deposit).",
+          "realReplacement": "Open /api/me/events and invalidate the me cache on push for live balance/activity/notification updates. Endpoint already exists.",
+          "severity": "medium"
+        },
+        {
+          "area": "Backend market data unused",
+          "file": "lib/client.ts:94-96 (apiMarket exported, never called); backend /api/me/market",
+          "currentState": "apiMarket() is defined but never invoked; the app prices everything via CoinGecko (lib/coingecko.ts). This is fine for majors, but means the backend's own valuation (portfolio.totalUsd/items[].usd, which drive KYC/withdrawal USD limits server-side) can diverge from what the UI shows, and any backend-only/NUQD pricing is never surfaced.",
+          "realReplacement": "Optionally reconcile display prices with the backend's market source (or at least be aware limit checks use backend prices); wire apiMarket where backend-authoritative valuation matters.",
+          "severity": "low"
+        },
+        {
+          "area": "Transaction detail sheet",
+          "file": "app/(stack)/activity/page.tsx:48,113-124; components/asset-detail.tsx",
+          "currentState": "The activity detail sheet resolves the asset badge/symbol via assetById() against the mock ASSETS list (works only for the 6 seeded assets), shows the synthetic client-generated 'Reference' id (e.g. w_<ts>, s_<from>_<to>_<at>) rather than a real backend tx/withdrawal id in all cases, and never shows fee, network, or confirmations. Swap 'Received' symbol also goes through mock lookup.",
+          "realReplacement": "Return and display real backend identifiers (withdrawal id, swap id/txId), fee, and status transitions; resolve asset metadata from a shared registry rather than mock ASSETS.",
+          "severity": "medium"
+        },
+        {
+          "area": "Price alerts setting has no engine",
+          "file": "lib/store.ts:82 (priceAlerts); app/(app)/profile/page.tsx:152-153",
+          "currentState": "The 'Price alerts' toggle (and 'Product news') persist to localStorage only. No alert rules can be set per-asset and nothing evaluates watchlist moves to notify the user, despite the Notifications screen having a 'price' visual kind ready.",
+          "realReplacement": "Add a price-alert rules API + evaluator on the backend that emits 'price' notifications; let users set thresholds from the asset screen.",
+          "severity": "medium"
+        },
+        {
+          "area": "Identity verification levels / limits",
+          "file": "app/(stack)/settings/identity/page.tsx:7-11,44",
+          "currentState": "The three verification levels and their limits ('Up to $50,000/day', 'Unlimited') are hardcoded and the 'Upgrade' affordance is a no-op label. These don't reflect the backend's real per-tier withdrawal USD limits or the user's real tier.",
+          "realReplacement": "Show the real tier from me.kyc and the backend's actual tier limits; make 'Upgrade' start a real KYC step.",
+          "severity": "medium"
+        },
+        {
+          "area": "Help center (search + topics)",
+          "file": "app/(stack)/settings/help/page.tsx:8-15,22-35",
+          "currentState": "The search box is a non-interactive div, the six topic rows are buttons that do nothing, and FAQs are static content. No real help/search backend.",
+          "realReplacement": "Wire to a real help/knowledge-base search or make topics link to real articles.",
+          "severity": "low"
+        },
+        {
+          "area": "Community links",
+          "file": "app/(stack)/settings/community/page.tsx:7-12",
+          "currentState": "All social channels (X/Discord/Telegram/Instagram) use href='#' placeholders and fabricated stats ('Join 40k+ members').",
+          "realReplacement": "Point to real community URLs; remove invented member counts.",
+          "severity": "low"
+        },
+        {
+          "area": "Rate the app",
+          "file": "app/(app)/profile/page.tsx:211-229",
+          "currentState": "The star-rating sheet only closes locally; no feedback is stored and 'Rate on the App Store' goes nowhere.",
+          "realReplacement": "Deep-link to the store listing and/or POST feedback to the support/feedback backend.",
+          "severity": "low"
+        },
+        {
+          "area": "Waitlist CTAs (Card / RWA / NUQD Coin / Earn)",
+          "file": "app/(app)/card/page.tsx:66-84; app/(stack)/rwa/page.tsx:88-111; app/(app)/explore/page.tsx:102-118; app/(app)/earn/page.tsx:93-116",
+          "currentState": "Every 'Join the waitlist / Notify me' button only flips local component state; no email/interest is captured anywhere, so the waitlists collect nothing.",
+          "realReplacement": "POST waitlist sign-ups (asset/feature + user) to a backend endpoint so interest is actually recorded.",
+          "severity": "low"
+        },
+        {
+          "area": "Card feature",
+          "file": "app/(app)/card/page.tsx (all)",
+          "currentState": "Entirely coming-soon: CSS card artwork with '•••• 0000' and hardcoded 'Layla Karim' holder, static benefits (2% cashback), no issuance/spend/limits behaviour.",
+          "realReplacement": "A real card program (issuer integration) — out of scope until licensed; today purely cosmetic.",
+          "severity": "low"
+        },
+        {
+          "area": "Leftover mock constants / demo addresses",
+          "file": "lib/mock-data.ts:95-103,178-181; app/(stack)/receive/page.tsx (MockReceive)",
+          "currentState": "DEMO_SEED (12-word phrase) is defined and unused; MY_ADDRESS and the mock-mode Receive path expose fixed demo addresses; CONTACTS/PROMOS/NEWS/MARKETS/PERPS remain as mock fixtures. These only render when the backend/CoinGecko are unset, but ship in the bundle.",
+          "realReplacement": "Prune dead mock constants (DEMO_SEED, PERPS if unused) and ensure mock-only addresses never render in real mode.",
+          "severity": "low"
+        },
+        {
+          "area": "Legal pages",
+          "file": "app/(stack)/legal/*/page.tsx; components/legal-page.tsx:32; app/(stack)/legal/licenses/page.tsx:10",
+          "currentState": "Terms/Privacy/Licenses are illustrative placeholder copy explicitly labelled 'demo … not binding … not a licensed exchange'.",
+          "realReplacement": "Replace with real reviewed legal text before any production/licensed launch (intentional for now).",
+          "severity": "low"
+        }
+      ]
+    },
+    "backendCaps": {
+      "unusedEndpoints": [
+        {
+          "endpoint": "GET /api/me/events (SSE, server.ts:232)",
+          "capability": "Server-Sent Events stream scoped to the logged-in customer (openStream/broadcast in server.ts:129-149). The backend already pushes an event whenever that customer's state changes: deposit credited (nuqdApp.simulateDeposit + live chain watcher), swap complete, withdrawal approved/settled, KYC/freeze change, new notification. Includes a 25s heartbeat and auto-cleans on disconnect.",
+          "appGap": "The app has zero real-time. lib/client.ts:apiMe uses a 6s cache and only refreshes on manual mutation/invalidateMe; the notification bell, balances, portfolio total and activity list never update live. An EventSource on /api/me/events would drive live re-fetch of apiMe(force) on every backend state change (e.g. staff approves a withdrawal, a deposit confirms) with no polling."
+        },
+        {
+          "endpoint": "GET /api/me/support (server.ts:272 -> Support.customerTickets)",
+          "capability": "Returns the customer's own support tickets with full threaded message history, status (open/pending/resolved/closed) and priority. Internal staff notes are filtered out server-side (support.ts:39). Ownership-scoped so no cross-customer leakage.",
+          "appGap": "The 'Contact support' screen (app/(stack)/settings/support/page.tsx) is 100% cosmetic: the form onSubmit merely sets sent=true, and the channel buttons are dead. There is no ticket list, no history, no status. A real in-app Help Center / My Tickets view is fully backed but unbuilt."
+        },
+        {
+          "endpoint": "POST /api/me/support (server.ts:277 -> Support.openTicket)",
+          "capability": "Opens a real support ticket (subject + body) that lands in the staff Support portal (support.html), can be assigned, prioritized, replied to, and escalated into a compliance case. Broadcasts to staff SSE.",
+          "appGap": "The support form persists nothing and never reaches staff. Wiring this powers an actual 'raise a ticket' flow from the app with a tracked case number."
+        },
+        {
+          "endpoint": "POST /api/me/support/reply (server.ts:278 -> Support.customerReply)",
+          "capability": "Customer reply within a ticket thread; reopens a resolved/closed ticket and notifies staff. Enforces ticket ownership.",
+          "appGap": "No threaded support conversation UI exists. This endpoint would power a two-way chat/message thread per ticket (the app currently fakes 'Live chat, replies in minutes')."
+        },
+        {
+          "endpoint": "POST /api/me/allowlist (server.ts:275 -> NuqdApp.allowlist, with cooling-off)",
+          "capability": "Register named withdrawal destinations ahead of time. NuqdApp.allowlist supports a 24h cooling-off (active_from = now()+interval; nuqdApp.ts:158-165) that blunts account-takeover drain attacks; the risk engine also scores 'new_destination'/'account_takeover' against allow-list age (riskEngine.ts:182-195).",
+          "appGap": "The app calls allowlist automatically with immediate=true right before every withdrawal (client.ts:117), so there is no 'Saved addresses / Address book' screen and the anti-ATO cooling-off protection is silently bypassed. A managed withdrawal-address book (add address -> cooling-off countdown -> then withdrawable) is fully supported but absent."
+        },
+        {
+          "endpoint": "POST /api/me/swap minToAmount slippage floor (nuqdApp.ts:303)",
+          "capability": "The swap engine enforces an optional slippage floor: if the oracle-priced net received amount drops below minToAmount it rejects with 'slippage: would receive less than minimum'. client.ts:apiSwap already accepts the minToAmount parameter and forwards it.",
+          "appGap": "placeOrder never passes minToAmount (api.ts:387 calls apiSwap(fromCore, toCoreId, fromAmount) with no floor), so every buy/sell/swap executes with no slippage protection and no 'max slippage' control in the trade UI."
+        },
+        {
+          "endpoint": "Withdrawal lifecycle states already in GET /api/me withdrawals[].status",
+          "capability": "The backend runs a 9-state withdrawal machine (requested/screening/pending_approval/approved/signing/broadcast/settled/rejected/failed) and returns the live status per withdrawal in /api/me (server.ts:258).",
+          "appGap": "realActivity() collapses all of that into pending/completed/failed (api.ts:196-198), so the customer never sees 'in AML screening', 'awaiting approval', 'broadcast, N confirmations', or a rejection reason. A real withdrawal status timeline is available with no new endpoint (the app just discards the granularity)."
+        }
+      ],
+      "missingForReal": [
+        {
+          "feature": "Earn / savings positions with real interest accrual (Earn tab is fully mock)",
+          "backendNeeded": "getEarn() returns hardcoded EARN_POSITIONS (api.ts:225-231); no earn tables/routes exist. Add earn_products(asset, apy_bps, term, designed_to_language) + earn_positions(user_id, product_id, principal, accrued, started_at, status); a keyless accrual service (scheduled) that posts real 'interest' journal transactions from a platform reserve account into user_available via the ledger; and /api/me/earn (list), POST /api/me/earn/subscribe (user_available -> locked/earn account), POST /api/me/earn/redeem. Must use hedged 'designed to' language, no guaranteed-return wording.",
+          "complexity": "L"
+        },
+        {
+          "feature": "Portfolio value history for a real balance chart (curve shape is fabricated)",
+          "backendNeeded": "getPortfolio scales a mock PORTFOLIO_SERIES to end at the real total (api.ts:129-132), so the chart shape is invented. Add portfolio_snapshots(user_id, ts, total_usd, breakdown jsonb) written by a periodic job that values each user's ledger balances at oracle prices, plus GET /api/me/portfolio/history?range=1D|1W|1M|1Y returning the real time series.",
+          "complexity": "M"
+        },
+        {
+          "feature": "Cost-basis tracking for real P&L (avg cost / unrealized gain)",
+          "backendNeeded": "loadAssets anchors avgCost to the live price so P&L always reads ~0 (api.ts:108-109 comment admits 'No cost-basis tracking server-side yet'). Add a cost-basis service that records lots per user per asset from deposits/buys/swaps (weighted-average or FIFO) at posting time, a cost_basis_lots table, and expose avgCost + unrealizedPnl (and realized P&L on sells) in NuqdApp.portfolio().",
+          "complexity": "L"
+        },
+        {
+          "feature": "Price alerts ('notify me when BTC > X')",
+          "backendNeeded": "No alerting anywhere. Add price_alerts(user_id, asset, direction, threshold_usd, active, last_fired) + a checker inside the existing market/price poll that fires a notification (reuse notifications table + the /api/me/events SSE push) when crossed, plus /api/me/alerts CRUD.",
+          "complexity": "M"
+        },
+        {
+          "feature": "In-app KYC submission (customer can start verification themselves)",
+          "backendNeeded": "KYC tier is set only by staff (POST /api/admin/customers/:id/kyc) or the AUTO_KYC=1 demo env (server.ts:245); applyKycResult (kycGate.ts:60) is a provider-webhook path with no customer entry point. Add POST /api/me/kyc/submit (personal details + document upload refs), a kyc_submissions table, a provider seam (Onfido/Jumio/IDwise) that calls applyKycResult on the verified webhook, and surface submission status/next-step in /api/me.kyc.",
+          "complexity": "L"
+        },
+        {
+          "feature": "Real testnet deposit addresses per chain (Receive shows placeholder strings)",
+          "backendNeeded": "register() writes placeholder addresses `${chain}:addr:${userId}` and a fake derivation_path (nuqdApp.ts:113-117); the Receive screen renders them verbatim (receive/page.tsx:37) and they are not scannable or real. The live DepositWatcher + Evm/Btc/Solana adapters already exist (server.ts:80-91) but have nothing real to watch. Add a keyless (watch-only xpub) address-derivation service that populates deposit_addresses with real testnet addresses per user per chain, so Receive shows valid QR-able addresses and real testnet deposits credit through the watcher.",
+          "complexity": "L"
+        },
+        {
+          "feature": "Per-transaction detail endpoint (tap a tx -> full lifecycle)",
+          "backendNeeded": "There is no GET /api/me/withdrawals/:id or /api/me/tx/:id; NuqdApp.withdrawalStatus (nuqdApp.ts:219) is unrouted and /api/me's withdrawals query omits chain_tx_hash, rejection_reason, risk_score, approvals_needed. Add a detail route that selects those columns (all already stored in the withdrawals/swaps/deposits tables) to power a tx-detail screen: status timeline, on-chain tx hash (explorer link), fee, usd_value at time, approvals, and rejection reason.",
+          "complexity": "S"
+        },
+        {
+          "feature": "Recurring buys / DCA (standard wealth-app feature)",
+          "backendNeeded": "No scheduled-order support. Add recurring_orders(user_id, asset, amount_usd, cadence, next_run, active) + a scheduler that executes a ledger swap (USDT->asset) each interval via the existing swap path, plus /api/me/recurring CRUD.",
+          "complexity": "M"
+        },
+        {
+          "feature": "Fiat on/off-ramp for BHD (local-currency funding/withdrawal)",
+          "backendNeeded": "The BHD asset exists in the ledger (chain=NULL, 'credited by ramp webhook not chain' — 001_schema.sql:34) but no ramp endpoint or route exists, so the app cannot fund in local currency (payment/deposit screens are cosmetic). Add a ramp provider seam + POST /api/me/ramp/quote, a signed ramp webhook that credits BHD through the ledger (external -> user_available), and a BHD bank-payout withdrawal path.",
+          "complexity": "L"
+        },
+        {
+          "feature": "2FA / TOTP + security settings (device & session management, password change)",
+          "backendNeeded": "auth.ts is password + server-side session only; no 2FA, and the risk engine flags that credential-change tracking is an unwired seam (riskEngine.ts:301 lastCredentialChangeMs: null). Add user_totp(user_id, secret, enabled), enroll/verify/disable endpoints gating login and withdrawals, a sessions/devices management view (sessions table already exists), a password-change endpoint that records a credential-change timestamp (feeding the risk engine's SIM-swap/ATO signal).",
+          "complexity": "M"
+        }
+      ]
+    },
+    "features": {
+      "features": [
+        {
+          "name": "Real-time balance & order-status push (SSE)",
+          "description": "Push balance/withdrawal/swap/deposit state changes to the app instantly instead of the current 6s polling cache, so the wallet and activity update live as staff act or chain events land.",
+          "feasibility": "wire-existing",
+          "priority": "P1",
+          "inScope": true,
+          "reason": "Backend already implements a per-customer SSE stream at GET /api/me/events (nuqd-core/src/app/server.ts:232) and calls broadcast({customerId}) after every deposit/swap/withdraw/KYC/freeze (server.ts:274-289, 326-348). The app never subscribes; lib/client.ts:84 apiMe just short-caches for 6s. Fix is frontend-only: open an EventSource, call invalidateMe()+reload on each event. No backend change."
+        },
+        {
+          "name": "Real P&L / cost-basis tracking",
+          "description": "Show true unrealized/realized gain-loss per holding and portfolio-wide, based on actual acquisition cost, not a placeholder.",
+          "feasibility": "needs-backend",
+          "priority": "P0",
+          "inScope": true,
+          "reason": "lib/api.ts:108-109 explicitly anchors avgCost to the live price so P&L renders ~0 rather than a fabricated number — the comment says 'No cost-basis tracking server-side yet'. The data to compute it already exists: swaps carry from_amount/to_amount/fee/rate/usd_value (sql/003_advanced.sql) and deposits carry amount (sql/001_schema.sql). Add an average-cost engine + /api/me endpoint that folds swap+deposit history into per-asset cost basis. No gated infra."
+        },
+        {
+          "name": "Portfolio value chart over time (real history)",
+          "description": "The Home hero chart should plot the account's actual historical USD value across 1D/1W/1M/1Y, not an illustrative shape.",
+          "feasibility": "needs-backend",
+          "priority": "P0",
+          "inScope": true,
+          "reason": "getPortfolio (lib/api.ts:130-132) takes the mock PORTFOLIO_SERIES curve and merely rescales it to end at the real current total — the whole line except the last point is fake. There are no historical balance snapshots server-side. Add a daily balances snapshot table + snapshot job (or reconstruct by valuing journal_entries at historical prices) and a /api/me/history endpoint. Pure data work, no mainnet/custody dependency."
+        },
+        {
+          "name": "In-app KYC / identity verification flow",
+          "description": "A customer-facing flow to submit identity info, track pending/approved status, and unlock higher tiers — currently the app shows a hardcoded 'Verified'.",
+          "feasibility": "needs-backend",
+          "priority": "P0",
+          "inScope": true,
+          "reason": "KYC is staff-only today: NuqdApp.setKyc is driven from the admin console or the AUTO_KYC=1 demo env (server.ts:245); the tier0 gate really blocks trading (nuqdApp.ts:300). The customer screens are fake — settings/identity/page.tsx hardcodes 'Verified · Level 2' and onboarding does no KYC. A simulated submission flow (collect fields -> status 'pending' -> staff/console approval, or demo auto-approve) is fully feasible under simulated custody. Only the real document/biometric IDV vendor (Onfido/Jumio) is needs-infra; the flow, status surface, and gating are in scope."
+        },
+        {
+          "name": "Support / live chat (ticketing)",
+          "description": "Let customers open support tickets, see threaded agent replies, and get notified — replacing the dead contact form.",
+          "feasibility": "wire-existing",
+          "priority": "P0",
+          "inScope": true,
+          "reason": "The backend has a complete customer support portal: GET /api/me/support (list), POST /api/me/support (open), POST /api/me/support/reply (server.ts:272,277,278), backed by support.ts and sql/007_support.sql (threaded ticket_messages, internal-note separation, escalation to compliance). The app is 100% mock — settings/support/page.tsx just calls setSent(true) and lib/client.ts has no support functions. Wiring only; agent replies even broadcast over the existing SSE."
+        },
+        {
+          "name": "Two-factor authentication (TOTP)",
+          "description": "Real TOTP/authenticator 2FA at login with recovery codes, not a cosmetic switch.",
+          "feasibility": "needs-backend",
+          "priority": "P0",
+          "inScope": true,
+          "reason": "profile/page.tsx:132 'Two-factor authentication' is a local store toggle only; auth.ts does scrypt passwords + server sessions but has no TOTP. Add a per-user TOTP secret (enroll/verify) checked in loginCustomer, plus recovery codes. No gated infra — standard app-tier security. A custodial finance app cannot ship without it."
+        },
+        {
+          "name": "Withdrawal status tracking & timeline",
+          "description": "A per-withdrawal detail view showing the requested→screening→approval→broadcast→settled lifecycle and rejection reasons.",
+          "feasibility": "wire-existing",
+          "priority": "P0",
+          "inScope": true,
+          "reason": "The backend runs a rich withdrawal state machine (sql/001_schema.sql withdrawal_status: requested/screening/pending_approval/approved/signing/broadcast/settled/rejected/failed; withdrawalService.ts) and /api/me already returns each withdrawal's id/status/destination (server.ts:258). The app only collapses status into pending/completed/failed in the activity list (lib/api.ts:195-197) with no detail/timeline screen. Data is present; build the view (optionally add a per-withdrawal GET for the full audit timeline)."
+        },
+        {
+          "name": "Withdrawal allow-list / address book management",
+          "description": "Let users pre-register and manage saved withdrawal addresses with the cooling-off period surfaced, instead of silently auto-allow-listing on every send.",
+          "feasibility": "needs-backend",
+          "priority": "P1",
+          "inScope": true,
+          "reason": "Backend has withdrawal_allowlist with a 24h cooling-off (sql/001_schema.sql; nuqdApp.allowlist) and POST /api/me/allowlist (server.ts:275). Today apiWithdraw (client.ts:117) POSTs the address with immediate=true right before every withdraw, bypassing the anti-ATO cooling-off and offering no address book. Add a GET (list) and delete endpoint + a manage-addresses UI; the write path and cooling-off logic already exist."
+        },
+        {
+          "name": "Deposit via real testnet chains",
+          "description": "Credit deposits from genuine testnet transactions (Sepolia/BTC signet/Solana devnet) with real per-user addresses and confirmation tracking, instead of 'add test funds'.",
+          "feasibility": "needs-backend",
+          "priority": "P1",
+          "inScope": true,
+          "reason": "EvmChainAdapter/BtcChainAdapter/SolanaChainAdapter + DepositWatcher already exist and activate on EVM_RPC_URL/BTC_ESPLORA_URL/SOL_RPC_URL (server.ts:80-91), with deposit status/confirmations modeled (sql/001_schema.sql seen/confirming/credited). Today the app calls simulateDeposit via apiDeposit (receive/page.tsx addFunds), and deposit addresses are placeholders `${chain}:addr:${userId}` (nuqdApp.ts:116). Needed: derive real testnet addresses from a watch-only xpub (NO private keys held) and point the watcher at testnet RPC. Testnet-only, no mainnet funds — within the hard constraints."
+        },
+        {
+          "name": "Price alerts & watchlist alerts",
+          "description": "User-defined price/percent-move alerts on watchlist assets that fire real notifications.",
+          "feasibility": "needs-backend",
+          "priority": "P1",
+          "inScope": true,
+          "reason": "The watchlist lives only in the client store (lib/store.ts:44) and profile 'Price alerts' is a cosmetic toggle (profile/page.tsx:152); the notifications screen even ships fake seeded price alerts (notifications/page.tsx:30). No alerts table or evaluation exists. Add a price_alerts table + a cron that evaluates live CoinGecko prices and inserts notifications — the notification pipeline (NuqdApp.notify, /api/me/notifications) is already real. No gated infra."
+        },
+        {
+          "name": "KYC tier limits & remaining-allowance display",
+          "description": "Show the user's KYC tier, daily/monthly withdrawal caps, and how much headroom remains.",
+          "feasibility": "needs-backend",
+          "priority": "P1",
+          "inScope": true,
+          "reason": "kyc_tier_limits (tier0-3 daily/monthly USD caps, sql/001_schema.sql) is enforced and rolling 24h/30d usage is already computed in withdrawalService.ts:130-145, but nothing is exposed to the customer — identity/page.tsx shows invented limits ('Up to $50,000/day'). Add a small /api/me endpoint returning tier + limits + current usage; the computation already exists internally."
+        },
+        {
+          "name": "Session & connected-device management",
+          "description": "List active sessions/devices and let the user revoke them; show real login history.",
+          "feasibility": "needs-backend",
+          "priority": "P1",
+          "inScope": true,
+          "reason": "Sessions are server-side with 8h TTL (sql/002_app.sql; auth.ts) and the risk engine already records logins with device/geo (nuqdApp.recordLogin), but logout only deletes the current token (auth.ts:50) and there's no list/revoke endpoint. settings/devices is mocked ('2 active'). Add GET sessions + revoke, and surface login history from the risk store. App-tier only."
+        },
+        {
+          "name": "Transaction receipts (per-transaction detail)",
+          "description": "Tap any activity row to see a full receipt: amounts, fee, rate, network/tx id, status, timestamps.",
+          "feasibility": "wire-existing",
+          "priority": "P1",
+          "inScope": true,
+          "reason": "All the data is already returned by /api/me — swaps carry fee/rate/usd_value/tx_id, withdrawals carry destination/status, deposits carry amount/status (server.ts:258-267) — but the app renders only summary rows (components/activity-row.tsx) with no detail screen. Frontend-only detail view; optionally add withdrawal chain_tx_hash to the payload."
+        },
+        {
+          "name": "CSV / account statement export",
+          "description": "Export transaction history (and a periodic statement) to CSV for tax/accounting.",
+          "feasibility": "wire-existing",
+          "priority": "P2",
+          "inScope": true,
+          "reason": "No export exists anywhere in the app, but realActivity (lib/api.ts:186) already assembles the full normalized deposit/withdrawal/swap history client-side, so CSV can be generated in the browser with zero backend work. A signed PDF statement would be an optional needs-backend enhancement, but the core export is in scope now."
+        },
+        {
+          "name": "Live price auto-refresh on open screens",
+          "description": "Prices/tickers refresh on an interval (and on focus) while a screen is open, rather than only on navigation.",
+          "feasibility": "wire-existing",
+          "priority": "P2",
+          "inScope": true,
+          "reason": "Market data is already real via CoinGecko with a 30s cache (lib/coingecko.ts, lib/api.ts:79) and the backend also exposes GET /api/me/market (server.ts:270). Add a lightweight polling/refetch loop (e.g. reuse useAsync on an interval) on Home/Explore/Asset screens. Frontend-only; a true websocket price feed would be a later upgrade."
+        },
+        {
+          "name": "Earn / savings (simulated accrual)",
+          "description": "Let users allocate idle balances to an Earn product that accrues interest daily via ledger postings, with strictly non-guaranteed 'designed to' language.",
+          "feasibility": "needs-backend",
+          "priority": "P2",
+          "inScope": true,
+          "reason": "earn/page.tsx is a coming-soon shell and EARN_POSITIONS/APY_TIERS are mock; the backend has no accrual. A simulated Earn is feasible: an earn_positions table + a daily accrual job posting platform_fees->user_available interest through the existing balanced ledger. HARD CONSTRAINT: must present rates as variable/'designed to' with no guaranteed-return wording, since there is no real hedged yield source — copy/compliance framing is part of scope, not real mainnet yield."
+        },
+        {
+          "name": "Recurring buys (DCA / auto-invest)",
+          "description": "Schedule repeating buys (e.g. weekly BTC) that execute automatically.",
+          "feasibility": "needs-backend",
+          "priority": "P2",
+          "inScope": true,
+          "reason": "Not present anywhere; trade is one-off market only (placeOrder -> apiSwap, lib/api.ts:360). Add a recurring_orders table + scheduler that invokes the existing NuqdApp.swap (USDT->asset) on cadence. Fully feasible under simulated custody — no gated infra."
+        },
+        {
+          "name": "Limit orders",
+          "description": "Place buy/sell orders that execute when price crosses a target, not just market swaps.",
+          "feasibility": "needs-backend",
+          "priority": "P2",
+          "inScope": true,
+          "reason": "placeOrder only does immediate ledger swaps (lib/api.ts:360-388); there is no order book or resting-order concept. Add a limit_orders table + a matcher that watches the live price feed and executes a ledger swap when the limit is crossed (funds can be held via the existing available->locked mechanism). Feasible on this stack; heavier than market orders, hence P2."
+        },
+        {
+          "name": "Referral & rewards program",
+          "description": "Real referral codes, attribution, and a points/rewards ledger — replacing the hardcoded demo.",
+          "feasibility": "needs-backend",
+          "priority": "P2",
+          "inScope": true,
+          "reason": "Entirely mock: rewards/page.tsx and profile/page.tsx hardcode REFERRAL_CODE 'LAYLA-NUQD', static tasks/points, and '12 referrals'. Add per-user referral codes + signup attribution + a points table; reward payouts can post ledger credits under simulated custody. No gated infra."
+        },
+        {
+          "name": "Multi-currency display (BHD/AED/SAR/EUR…)",
+          "description": "Actually convert and render balances/prices in the user's selected base currency, not USD-only.",
+          "feasibility": "needs-backend",
+          "priority": "P2",
+          "inScope": true,
+          "reason": "The currency picker (profile/page.tsx:142, settings.currency) is cosmetic — every value is USD (config.baseCurrency; portfolio.totalUsd from nuqdApp.portfolio). Needs an FX source (CoinGecko supports vs_currency, or a small FX-rate table/endpoint) plus a frontend conversion layer applied to ledger USD values. Mostly frontend with a light backend FX feed; no gated infra."
+        },
+        {
+          "name": "Passkey / WebAuthn biometric unlock",
+          "description": "Real device biometric/passkey unlock and step-up auth, instead of a local 'Biometric unlock' toggle.",
+          "feasibility": "needs-backend",
+          "priority": "P2",
+          "inScope": true,
+          "reason": "settings.biometrics (profile/page.tsx:130) is a local toggle with no cryptographic backing; config.sessionTimeoutMs gives only a soft auto-lock. WebAuthn/passkey registration+assertion needs server-side credential storage and a verify step in auth.ts. App-tier security feature, feasible without gated infra; complements TOTP."
+        },
+        {
+          "name": "NUQD Card (spend/cashback)",
+          "description": "A real virtual/physical card that spends the balance with cashback.",
+          "feasibility": "needs-infra",
+          "priority": "P2",
+          "inScope": false,
+          "reason": "card/page.tsx is a coming-soon waitlist mock. A real card requires a BIN sponsor / issuer-processor (Visa/Mastercard program), PCI scope, and regulatory approval — squarely in the compliance-gated infrastructure the constraints exclude. Keep as waitlist until licensing/custody are in place."
+        },
+        {
+          "name": "Fiat on/off-ramp (BHD deposit & withdrawal)",
+          "description": "Deposit and withdraw local fiat (BHD) via bank transfer/cards.",
+          "feasibility": "needs-infra",
+          "priority": "P2",
+          "inScope": false,
+          "reason": "The BHD asset exists but sql/001_schema.sql notes it is 'credited by ramp webhook not chain', and no ramp is implemented. Real fiat rails need a licensed PSP/bank integration and CBB approval — the gated infra the constraints forbid. Crypto testnet deposits (separate feature) remain the in-scope funding path."
+        }
+      ]
+    },
+    "plan": {
+      "plan": [
+        {
+          "feature": "Real-time SSE stream (live balances / activity / notifications)",
+          "value": "Foundational: makes every other screen update instantly when a deposit confirms, a swap posts, or staff settles/rejects a withdrawal — the single biggest 'this feels real' upgrade, and a prerequisite for price-alert and withdrawal-status UX feeling live. Backend already broadcasts on every state change; app has zero real-time today (6s cache only).",
+          "backendFiles": [
+            "(none — GET /api/me/events already implemented in src/app/server.ts:232 via openStream/broadcast)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (add openMeEvents(): EventSource on config.apiBaseUrl+'/api/me/events' with Bearer via query token since EventSource can't set headers — OR add a tiny fetch-based SSE reader; on each message call invalidateMe())",
+            "lib/use-async.ts (optional: expose a global 'me-changed' event listeners can subscribe to)",
+            "components/top-bar.tsx (subscribe, refetch unread)",
+            "app/(app)/home/page.tsx, app/(app)/wallet/page.tsx, app/(stack)/activity/page.tsx, app/(stack)/notifications/page.tsx (re-run their useAsync loaders on the me-changed signal)"
+          ],
+          "effort": "M",
+          "risk": "EventSource cannot send Authorization headers; backend actorOf reads Bearer/cookie. Either add a one-time '?token=' accepted by /api/me/events (small server tweak) or use a fetch+ReadableStream SSE reader in the client. Reconnect/backoff needed. Guard so it only runs when isReal().",
+          "approach": "Add openMeEvents() to lib/client.ts that opens the existing /api/me/events stream, and on any event calls invalidateMe() then dispatches a window CustomEvent('nuqd:me'). A small useMeStream() hook (new lib/use-me-stream.ts) wraps this; screens already using useAsync add a listener that re-triggers their loader. Reuses invalidateMe() and the existing broadcast({customerId}) calls at server.ts:274-288.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Real quote + slippage protection + true receipt in Trade",
+          "value": "Removes the most misleading cosmetic in the trade flow: today the rate/fee/'you receive' are computed client-side (0.5% FEE_RATE) and the swap executes with NO slippage floor and shows locally-computed units, which can diverge from the server's actual fill (spreadBps=50). Wiring the already-built /api/me/quote + minToAmount makes the number the user confirms the number they get.",
+          "backendFiles": [
+            "(none — /api/me/quote at server.ts:279 and minToAmount enforced in nuqdApp swap at ~:303 already exist)"
+          ],
+          "frontendFiles": [
+            "app/(app)/trade/page.tsx (call apiQuote(from,to,amount) on amount change to show real rate/fee/received; compute minToAmount = quote.toAmount * (1 - maxSlippage); add a max-slippage control; render receipt from swap response)",
+            "lib/api.ts (placeOrder: thread minToAmount into apiSwap and return r.toAmount/r.fee/r.rate; add optional quote passthrough)",
+            "lib/client.ts (apiQuote already exported; ensure placeOrder path uses it)"
+          ],
+          "effort": "M",
+          "risk": "Quote must be debounced to avoid hammering the endpoint on each keystroke; handle 'insufficient balance'/'slippage' errors from swap; keep mock-mode path (isReal()===false) unchanged so offline build still works.",
+          "approach": "In real mode, replace the client-side FEE_RATE math with a debounced apiQuote() call feeding the rate/fee/receive rows; on confirm pass minToAmount to apiSwap (already a param at client.ts:112) and show r.toAmount/r.fee/r.txId on the success screen. Reuses apiQuote/apiSwap verbatim.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Wire real support ticketing (replace dead contact form)",
+          "value": "A complete customer support backend (list/open/reply, threaded, staff-visible, SSE-notified) already exists and is 100% unused — the app just sets sent=true. This is pure wiring for a real 'My tickets' + open-ticket + threaded-reply experience, high perceived value at low cost.",
+          "backendFiles": [
+            "(none — GET/POST /api/me/support + POST /api/me/support/reply at server.ts:272,277,278 back onto support.ts)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (add apiSupportList(), apiSupportOpen(subject,body), apiSupportReply(ticketId,body))",
+            "app/(stack)/settings/support/page.tsx (replace setSent(true) with apiSupportOpen; render ticket list from apiSupportList with status/priority)",
+            "app/(stack)/settings/support/[id]/page.tsx (NEW: threaded ticket view with customerReply)"
+          ],
+          "effort": "M",
+          "risk": "Low. Ensure internal staff notes stay filtered (already done server-side in support.ts). Format timestamps relatively.",
+          "approach": "Add three thin req() wrappers to lib/client.ts mirroring the existing apiNotifications pattern, then build a My Tickets list + detail thread. Ticket replies already broadcast to staff SSE and (via item 1) can surface back to the customer. Reuses app.support.customerTickets/openTicket/customerReply.",
+          "dependsOn": [
+            "Real-time SSE stream (live balances / activity / notifications)"
+          ]
+        },
+        {
+          "feature": "Real identity from session (name/email) across app",
+          "value": "Every screen hardcodes 'Layla Karim / layla@email.com' while the real signed-in email sits in the Zustand session and me.actor. Rendering the real account identity (and capturing the onboarding name) removes the most obvious 'demo' tell app-wide for near-zero effort.",
+          "backendFiles": [
+            "src/app/server.ts /api/register (extend to accept+store display_name)",
+            "src/app/nuqdApp.ts register() (persist name)",
+            "src/app/sql/00X_name.sql (NEW: ALTER TABLE users ADD COLUMN display_name text) and include display_name in /api/me actor/kyc query at server.ts:257"
+          ],
+          "frontendFiles": [
+            "app/(app)/profile/page.tsx:64-70 (render session/me email + name)",
+            "components/top-bar.tsx:16 (avatar/name from session)",
+            "app/(app)/card/page.tsx:132 (holder name)",
+            "app/(stack)/settings/personal/page.tsx:24-27 (defaults from session; wire Save to a new POST /api/me/profile — or drop no-op)",
+            "app/onboarding/page.tsx:120 + lib/client.ts:53 (send name to apiRegister)"
+          ],
+          "effort": "S",
+          "risk": "Adding display_name is a schema migration; if avoided, ship email-only now and defer name. POST /api/me/profile is optional — without it Personal-details Save stays a no-op or is removed.",
+          "approach": "Minimal path: read email from the existing session store / me.actor everywhere (no backend change) — this alone fixes TopBar/Profile/Card. Fuller path: add display_name column, thread the onboarding 'Full name' through apiRegister, and add POST /api/me/profile for edits. Reuses existing session store and apiMe.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Surface real KYC tier + friendly verification gate",
+          "value": "me.kyc {kyc_tier, sanctions_clear, frozen} is fetched but has ZERO consumers; Identity/Profile hardcode 'Verified · Level 2'. tier0 users hit a raw 'KYC required' error on Trade/Send. Reading the real tier and showing a proper 'verification in review' gate is honest, low-effort, and unblocks the trading funnel UX.",
+          "backendFiles": [
+            "(none for surfacing — data already in /api/me. In-app KYC submission is a separate L item below.)"
+          ],
+          "frontendFiles": [
+            "app/(app)/profile/page.tsx:66-71,124 (badge/tier from me.kyc)",
+            "app/(stack)/settings/identity/page.tsx:7-11,22-26,44 (show real tier + real per-tier limits, not invented ones)",
+            "app/(app)/trade/page.tsx, app/(stack)/send/page.tsx (pre-check me.kyc.kyc_tier==='tier0' or frozen → friendly gate + 'start verification' CTA instead of raw error)"
+          ],
+          "effort": "S",
+          "risk": "Copy must not claim 'Verified' when tier0. Keep the demo AUTO_KYC path documented so testers can proceed.",
+          "approach": "Read me.kyc in Profile/Identity and render the actual tier/frozen state; add a shared <KycGate> that reads me.kyc and blocks Trade/Send for tier0/frozen with a review banner. Reuses apiMe; no backend change.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Scannable deposit QR (swap MockQR → real QrCode)",
+          "value": "The custodial Receive screen renders a deterministic NON-scannable pseudo-QR over the real deposit address. A working QR generator (components/qr-code.tsx) already ships and is used by LiveWallet — one component swap makes deposits actually usable.",
+          "backendFiles": [
+            "(none)"
+          ],
+          "frontendFiles": [
+            "app/(stack)/receive/page.tsx:68-72 (use <QrCode value={address}/> instead of <MockQR/>)",
+            "components/mock-qr.tsx (delete once unused)"
+          ],
+          "effort": "S",
+          "risk": "Trivial. Ensure mock-mode demo addresses never render in real mode (also see dead-constant pruning).",
+          "approach": "Replace the MockQR import with the existing components/qr-code.tsx already proven in live-wallet.tsx. Reuses an in-repo component.",
+          "dependsOn": []
+        },
+        {
+          "feature": "CSV / statement export of transaction history",
+          "value": "A standard wealth-app feature entirely missing. realActivity() already assembles the full normalized deposit/withdrawal/swap history client-side, so a CSV download is zero-backend, high-utility (tax/accounting).",
+          "backendFiles": [
+            "(none — optional signed-PDF statement is a later needs-backend add)"
+          ],
+          "frontendFiles": [
+            "lib/format.ts or new lib/export.ts (toCsv(rows) helper)",
+            "app/(stack)/activity/page.tsx (Export button → Blob download)"
+          ],
+          "effort": "S",
+          "risk": "None material; ensure real backend ids/amounts are used (ties into tx-detail item).",
+          "approach": "Serialize the array returned by getActivity()/realActivity() to CSV and trigger a client-side Blob download. Reuses existing realActivity().",
+          "dependsOn": []
+        },
+        {
+          "feature": "Live price auto-refresh on open screens",
+          "value": "Prices are already real (CoinGecko, 30s cache) but only refetch on navigation. A lightweight interval/on-focus refetch makes Home/Explore/Asset feel live like a real ticker, frontend-only.",
+          "backendFiles": [
+            "(none)"
+          ],
+          "frontendFiles": [
+            "lib/use-async.ts (add optional refetchIntervalMs)",
+            "app/(app)/home/page.tsx, app/(app)/explore/page.tsx, app/(stack)/asset/[id]/page.tsx (poll ~30s + refetch on visibilitychange)"
+          ],
+          "effort": "S",
+          "risk": "Respect CoinGecko rate limits — reuse the existing 30s/60s caches so extra renders don't add network calls; pause when tab hidden.",
+          "approach": "Extend useAsync with an interval and a visibilitychange refetch; the coingecko caches already dedupe so this is mostly a re-render trigger. Reuses lib/coingecko.ts caching.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Withdrawal status timeline + real transaction-detail sheet",
+          "value": "The backend runs a 9-state withdrawal machine and returns live status per withdrawal, but realActivity() collapses it to pending/completed/failed and the detail sheet shows a synthetic client 'Reference' and no fee/network/status. Showing the true lifecycle + real ids is a big trust upgrade with mostly frontend work.",
+          "backendFiles": [
+            "src/app/server.ts (add GET /api/me/withdrawals/:id returning status, chain_tx_hash, rejection_reason, fee, usd_value, created/updated timestamps — columns already stored; nuqdApp.withdrawalStatus at nuqdApp.ts:219 is the seed, extend to select full row) and add chain_tx_hash/rejection_reason to the /api/me withdrawals query at server.ts:258"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiWithdrawalDetail(id))",
+            "lib/api.ts:195-201 (map full withdrawal status set, not just settled/rejected/failed; carry real w.id as reference)",
+            "app/(stack)/activity/page.tsx:48,113-124 + components/asset-detail.tsx (render status timeline, fee, tx hash/explorer link, rejection reason; resolve asset metadata from a shared registry not mock ASSETS)"
+          ],
+          "effort": "M",
+          "risk": "Detail endpoint must be ownership-scoped (WHERE user_id=$1). Explorer links only meaningful once real testnet broadcast exists (item below) — until then show status states without a hash.",
+          "approach": "Add the columns to the existing /api/me withdrawals SELECT and a small owned-by GET detail route (reusing the withdrawals table already populated by withdrawalService). Frontend renders the real status enum as a timeline. Pairs with the SSE item so the timeline advances live.",
+          "dependsOn": [
+            "Real-time SSE stream (live balances / activity / notifications)"
+          ]
+        },
+        {
+          "feature": "Change-password endpoint + wire the screen",
+          "value": "The change-password form shows 'Password updated' without ever calling the backend — passwords are never changed. A real endpoint using the existing scrypt auth closes a genuine security gap and also feeds the risk engine's credential-change signal (currently an unwired seam).",
+          "backendFiles": [
+            "src/app/auth.ts (add changePassword(userId, current, next): verify current via existing scrypt verify, set new hash)",
+            "src/app/server.ts (POST /api/me/password)",
+            "src/app/nuqdApp.ts / risk store (record lastCredentialChangeMs to feed riskEngine SIM-swap/ATO signal)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiChangePassword)",
+            "app/(stack)/settings/password/page.tsx (call it; surface real errors)"
+          ],
+          "effort": "S",
+          "risk": "Must verify current password server-side and rate-limit. Invalidate other sessions on change (ties to sessions item).",
+          "approach": "Reuse the existing scrypt hash/verify in auth.ts; add one route and one client fn. Record the credential-change timestamp so riskEngine.ts:301 stops being null.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Address book / allow-list management with cooling-off",
+          "value": "Today apiWithdraw silently POSTs the destination to /api/me/allowlist with immediate intent right before every send, bypassing the backend's 24h anti-ATO cooling-off and offering no saved-address UX. Exposing a managed address book restores the security control AND replaces the hardcoded CONTACTS list in Send.",
+          "backendFiles": [
+            "src/app/server.ts (add GET /api/me/allowlist (list) and DELETE /api/me/allowlist/:id; POST already exists at :275). Include allowlisted addresses (with active_from) in /api/me",
+            "src/app/nuqdApp.ts allowlist() (already supports cooling-off at ~:158-165) — add list/remove helpers"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiAllowlistList/apiAllowlistAdd/apiAllowlistRemove; stop auto-allowlisting inside apiWithdraw)",
+            "app/(stack)/settings/ (NEW addresses screen) or reuse app/(stack)/send/page.tsx:181-201 sheet to show real allow-list + cooling-off countdown",
+            "lib/mock-data.ts (remove CONTACTS once real)"
+          ],
+          "effort": "M",
+          "risk": "UX change: withdrawals to a brand-new address now require a cooling-off wait. Provide a clear countdown and an 'immediate' toggle only where policy permits. Don't break the current one-tap send for already-allowlisted addresses.",
+          "approach": "Add list/delete routes over the existing withdrawal_allowlist table, surface the saved addresses (with active_from) as the Send contact source, and stop the implicit immediate=true allow-list in apiWithdraw (client.ts:117). Reuses NuqdApp.allowlist + riskEngine new_destination scoring.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Portfolio value history endpoint + real balance chart",
+          "value": "The Home/Wallet hero chart is fabricated — getPortfolio rescales a mock PORTFOLIO_SERIES so only the last point is real; all six ranges share the same fake shapes. A real snapshot series is the headline 'digital wealth' visual and currently the most prominent fake.",
+          "backendFiles": [
+            "src/app/sql/00X_snapshots.sql (NEW: portfolio_snapshots(user_id, ts, total_usd numeric, breakdown jsonb))",
+            "src/app/nuqdApp.ts (snapshotAll(): value each user's ledger balances at oracle/market prices — reuse portfolio() valuation — write a row; run on an interval/cron)",
+            "src/app/server.ts (GET /api/me/portfolio/history?range=1D|1W|1M|1Y)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiPortfolioHistory(range))",
+            "lib/api.ts:119-141 getPortfolio (use real series in real mode; keep mock rescale only when !isReal())",
+            "app/(app)/home/page.tsx + app/(app)/wallet/page.tsx (plot real curve)"
+          ],
+          "effort": "M",
+          "risk": "Needs a scheduler (node interval or external cron) to accumulate history — new curves are sparse until data builds. Can bootstrap by reconstructing from swaps/deposits/withdrawals + historical CoinGecko prices for an initial backfill. Snapshot job must be cheap for many users.",
+          "approach": "Add a periodic snapshot writer reusing app.portfolio()'s valuation, plus a history read route; frontend plots the true series and only falls back to the illustrative curve in mock mode. Reuses portfolio() and marketData().",
+          "dependsOn": []
+        },
+        {
+          "feature": "Cost-basis tracking → real unrealized/realized P&L",
+          "value": "avgCost is anchored to the live price so per-asset and total P&L read ~0 (the code comment admits 'No cost-basis tracking server-side yet'). Real P&L is core to a wealth app; the raw data (swaps carry from/to/fee/rate/usd_value, deposits carry amount) already exists to compute weighted-average cost.",
+          "backendFiles": [
+            "src/app/sql/00X_costbasis.sql (NEW: cost_basis_lots(user_id, asset, qty, unit_cost_usd, acquired_at) or a rolling wavg column)",
+            "src/app/nuqdApp.ts (cost-basis service: on each buy/deposit/swap posting, update lots; extend portfolio() to return avgCost + unrealizedPnl per item and realized P&L on sells)",
+            "src/app/server.ts (/api/me already returns portfolio — add the new fields)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts CoreMe.portfolio item type (add avgCost/unrealizedPnl)",
+            "lib/api.ts:105-110 loadAssets (use real avgCost instead of anchoring to price)",
+            "app/(app)/wallet/page.tsx:33-36,171-172,196-199 (true P&L, total invested)"
+          ],
+          "effort": "L",
+          "risk": "Historical backfill for existing swaps/deposits is fiddly (need price-at-time). Choose one method (weighted-average is simpler than FIFO/lots) and document it. Realized P&L on partial sells needs care.",
+          "approach": "Add a cost-basis engine that folds the existing swaps+deposits history (usd_value already on swaps) into a per-asset weighted-average unit cost at posting time, surface avgCost/unrealizedPnl in portfolio(), and drop the price-anchor hack in api.ts. Reuses the swaps/deposits tables and portfolio().",
+          "dependsOn": []
+        },
+        {
+          "feature": "Price alerts (rules + evaluator + notifications)",
+          "value": "The 'Price alerts' toggle and the notifications screen's 'price' visual kind are dormant — no rules, no evaluator. Real per-asset threshold alerts that fire true notifications (over the already-real notification + SSE pipeline) is a marquee engagement feature with no gated infra.",
+          "backendFiles": [
+            "src/app/sql/00X_alerts.sql (NEW: price_alerts(user_id, asset, direction, threshold_usd, active, last_fired))",
+            "src/app/nuqdApp.ts / a checker in the existing market/price poll (evaluate live prices; on cross call the existing notify() → notifications table → broadcast SSE)",
+            "src/app/server.ts (/api/me/alerts CRUD)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiAlerts CRUD)",
+            "app/(stack)/asset/[id]/page.tsx (set-alert control)",
+            "app/(app)/profile/page.tsx:152 (wire the toggle to real state)",
+            "app/(stack)/notifications/page.tsx (already has 'price' kind — remove the fake seed)"
+          ],
+          "effort": "M",
+          "risk": "Needs a price-poll loop; dedupe firing (last_fired + hysteresis) to avoid spamming. Reuse CoinGecko prices already fetched, don't add a new feed.",
+          "approach": "Add a price_alerts table + a small evaluator hooked into the existing market poll that emits via the real NuqdApp.notify()/notifications pipeline (which already pushes over /api/me/events). Frontend adds set-alert on the asset screen. Reuses notify() + SSE from item 1.",
+          "dependsOn": [
+            "Real-time SSE stream (live balances / activity / notifications)"
+          ]
+        },
+        {
+          "feature": "KYC tier limits + remaining-allowance display",
+          "value": "kyc_tier_limits (tier0-3 daily/monthly caps) are enforced and rolling 24h/30d usage is already computed internally in withdrawalService, but nothing is exposed — Identity shows invented '$50,000/day'. Showing the real tier, caps, and headroom is honest and cheap since the computation exists.",
+          "backendFiles": [
+            "src/app/server.ts (small GET /api/me/limits returning tier + caps + current rolling usage)",
+            "src/app/withdrawalService.ts (~:130-145 already computes usage — expose it via a method)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiLimits)",
+            "app/(stack)/settings/identity/page.tsx:7-11,44 (render real caps + remaining)",
+            "app/(stack)/send/page.tsx (show remaining allowance before withdraw)"
+          ],
+          "effort": "S",
+          "risk": "Low; ensure the usage query matches the enforcement query exactly so the displayed headroom equals what the server will allow.",
+          "approach": "Expose the existing rolling-usage computation from withdrawalService as a read endpoint and render it in place of the hardcoded limits. Reuses the enforcement code path.",
+          "dependsOn": [
+            "Surface real KYC tier + friendly verification gate"
+          ]
+        },
+        {
+          "feature": "In-app KYC submission flow",
+          "value": "KYC is staff/AUTO_KYC-only today; there's no customer entry point to start verification. A simulated submission flow (collect fields → status 'pending' → admin/AUTO approve) lets a tier0 user self-serve up the tiers under simulated custody — the real IDV vendor is the only gated part.",
+          "backendFiles": [
+            "src/app/sql/00X_kyc_submissions.sql (NEW: kyc_submissions(user_id, fields jsonb, doc_refs, status, submitted_at))",
+            "src/app/server.ts (POST /api/me/kyc/submit; surface submission status in /api/me.kyc)",
+            "src/app/nuqdApp.ts / kycGate.ts:60 applyKycResult (add a provider seam that a webhook or the demo path calls to set tier)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiKycSubmit)",
+            "app/(stack)/settings/identity/page.tsx (multi-step form + pending-review state + next step)"
+          ],
+          "effort": "L",
+          "risk": "HARD CONSTRAINT: real document/biometric IDV (Onfido/Jumio/IDwise) is needs-infra — build the flow + status + gating now with a provider seam and demo auto-approve, not a live vendor. Don't collect real ID docs without the vendor + storage in place.",
+          "approach": "Add a submissions table + submit route that sets status 'pending'; reuse the existing applyKycResult(kycGate.ts:60) as the approval hook (called by demo AUTO path or a future webhook). Surface submission status through me.kyc so the gate (item 5) shows 'in review'. Reuses the existing tier enforcement.",
+          "dependsOn": [
+            "Surface real KYC tier + friendly verification gate"
+          ]
+        },
+        {
+          "feature": "2FA / TOTP with recovery codes",
+          "value": "The 'Two-factor authentication' toggle is a cosmetic Zustand boolean; auth is password+session only. A custodial finance app cannot credibly ship without real 2FA. Standard app-tier feature, no gated infra.",
+          "backendFiles": [
+            "src/app/sql/00X_totp.sql (NEW: user_totp(user_id, secret, enabled) + recovery_codes)",
+            "src/app/auth.ts (enroll/verify/disable; check TOTP in loginCustomer; optionally step-up before withdraw)",
+            "src/app/server.ts (POST /api/me/2fa/enroll, /verify, /disable)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (api2faEnroll/Verify/Disable)",
+            "app/(app)/profile/page.tsx:132 (real enroll/disable flow with QR of otpauth URI — reuse components/qr-code.tsx)",
+            "app/onboarding/page.tsx + login (TOTP challenge step)"
+          ],
+          "effort": "M",
+          "risk": "Secret storage and recovery-code handling must be careful; adds a login step. Provide recovery codes and a disable path to avoid lockout. TOTP lib needed (RFC 6238) — small, keyless.",
+          "approach": "Add a TOTP secret per user, enroll via otpauth URI rendered with the existing QrCode component, verify in loginCustomer, and gate withdrawals with an optional step-up. Reuses auth.ts session issuance and components/qr-code.tsx.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Session & connected-device management",
+          "value": "Sessions are real server-side (8h TTL, logins recorded with device/geo by risk engine) but there's no list/revoke endpoint, so settings/devices is fully mocked. Real 'active sessions + revoke + login history' is expected security UX and the data already exists.",
+          "backendFiles": [
+            "src/app/server.ts (GET /api/me/sessions, POST /api/me/sessions/:id/revoke)",
+            "src/app/auth.ts (list sessions for user; revoke by id — extend beyond the current single-token logout at ~:50)",
+            "src/app/nuqdApp.ts recordLogin store (surface login history)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiSessions/apiRevokeSession)",
+            "app/(stack)/settings/devices/page.tsx:11-14,52-56 (drive from real sessions; real revoke)"
+          ],
+          "effort": "M",
+          "risk": "Revoking the current session must log the user out gracefully; 'sign out all other devices' should keep the current one. Device labels come from UA parsing (best-effort).",
+          "approach": "Add list/revoke over the existing sessions table (sql/002_app.sql) and render real sessions + login history (from recordLogin) in settings/devices. Reuses auth.ts session store.",
+          "dependsOn": [
+            "Change-password endpoint + wire the screen"
+          ]
+        },
+        {
+          "feature": "Recurring buys / DCA (auto-invest)",
+          "value": "A standard wealth-app feature entirely absent (trade is one-off market only). A scheduler that runs the existing USDT→asset swap on a cadence is fully feasible under simulated custody and adds real 'set-and-forget' investing.",
+          "backendFiles": [
+            "src/app/sql/00X_recurring.sql (NEW: recurring_orders(user_id, asset, amount_usd, cadence, next_run, active))",
+            "src/app/nuqdApp.ts / scheduler (execute app.swap(USDT→asset) each interval, emit notification)",
+            "src/app/server.ts (/api/me/recurring CRUD)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiRecurring CRUD)",
+            "app/(app)/trade/page.tsx (add 'Repeat' option)",
+            "app/(app)/home/page.tsx or a new screen (manage recurring orders)"
+          ],
+          "effort": "M",
+          "risk": "Scheduler reliability (missed runs on downtime); must respect KYC gate + balance at run time and notify on failure (insufficient cash leg).",
+          "approach": "Add a recurring_orders table + an interval scheduler that invokes the existing NuqdApp.swap on cadence and notifies via the real pipeline. Reuses app.swap() and notify().",
+          "dependsOn": [
+            "Real quote + slippage protection + true receipt in Trade"
+          ]
+        },
+        {
+          "feature": "Real testnet deposit addresses + live chain crediting",
+          "value": "register() writes placeholder addresses (`${chain}:addr:${userId}`) and Receive renders them verbatim; deposits are only 'add test funds'. Deriving real testnet addresses (watch-only xpub, NO private keys held) and pointing the already-built DepositWatcher at testnet RPC turns Receive into a genuine on-chain funding path — within the testnet-only constraint.",
+          "backendFiles": [
+            "src/app/nuqdApp.ts:114-117 (replace placeholder derivation with a watch-only xpub address-derivation service; populate deposit_addresses with real testnet addresses per chain)",
+            "src/app/adapters.ts (Evm/Btc/Solana adapters + DepositWatcher already exist at server.ts:80-91 — configure EVM_RPC_URL/BTC_ESPLORA_URL/SOL_RPC_URL for testnet)",
+            "src/app/sql/001_schema.sql deposit flow (seen/confirming/credited already modeled)"
+          ],
+          "frontendFiles": [
+            "app/(stack)/receive/page.tsx:37 (already renders me.addresses — no change beyond the QR swap; confirmation tracking display)"
+          ],
+          "effort": "L",
+          "risk": "HARD CONSTRAINT respected: testnet only, watch-only derivation, service holds NO private keys. Requires a BIP32 xpub-derivation lib (keyless) and reliable testnet RPC endpoints. Address reuse/gap-limit and confirmation thresholds need care. Do NOT enable mainnet.",
+          "approach": "Add a watch-only address-derivation service (derive per-user testnet addresses from configured xpubs) writing real addresses into deposit_addresses, and enable the existing DepositWatcher against testnet RPCs so real testnet sends credit through the ledger. Reuses the existing chain adapters + watcher + deposit state machine.",
+          "dependsOn": [
+            "Scannable deposit QR (swap MockQR → real QrCode)"
+          ]
+        },
+        {
+          "feature": "Earn / savings with simulated ledger accrual",
+          "value": "The whole Earn tab is a coming-soon shell with hardcoded APYs and EARN_POSITIONS=[]; getPortfolio.earning is always $0. A simulated Earn (daily accrual posted through the real double-entry ledger) makes the second-biggest tab functional — with strict 'designed to'/variable-rate framing per the hard constraint.",
+          "backendFiles": [
+            "src/app/sql/00X_earn.sql (NEW: earn_products(asset, apy_bps, term, designed_to_language), earn_positions(user_id, product_id, principal, accrued, started_at, status))",
+            "src/app/nuqdApp.ts (subscribe: user_available→earn account; redeem: back; a scheduled accrual service posting balanced 'interest' journal transactions from a platform reserve)",
+            "src/app/server.ts (/api/me/earn, POST /api/me/earn/subscribe, /redeem)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiEarn/subscribe/redeem)",
+            "lib/api.ts:225-231 getEarn (use real positions)",
+            "app/(app)/earn/page.tsx (full functional UI)",
+            "lib/mock-data.ts (remove EARN_POSITIONS/APY_TIERS once real)"
+          ],
+          "effort": "L",
+          "risk": "HARD CONSTRAINT: no guaranteed-return wording — rates must be presented as variable/'designed to' with clear risk copy (there is no real hedged yield). Accrual must post through the balanced ledger from a funded platform reserve, not mint value. Compliance copy is in-scope.",
+          "approach": "Add earn_products/earn_positions + subscribe/redeem that move funds available↔earn via the ledger, and a daily accrual job posting interest from a platform reserve account through the existing double-entry journal. Frontend renders real positions and 'designed to' framing. Reuses the ledger posting engine and notify().",
+          "dependsOn": []
+        },
+        {
+          "feature": "Multi-currency display (BHD/AED/SAR/EUR)",
+          "value": "The currency picker is cosmetic — every value is USD. Converting balances/prices to the user's base currency is expected for a GCC/Bahrain app and mostly frontend with a light FX feed (CoinGecko supports vs_currency).",
+          "backendFiles": [
+            "(optional) src/app/server.ts small FX endpoint or extend marketData() with vs_currency; otherwise pure frontend via CoinGecko vs_currency"
+          ],
+          "frontendFiles": [
+            "lib/coingecko.ts (fetch FX / pass vs_currency)",
+            "lib/format.ts (currency-aware formatting)",
+            "lib/store.ts settings.currency (already exists) → apply a conversion layer to all displayed USD values across home/wallet/trade/profile"
+          ],
+          "effort": "M",
+          "risk": "Ledger stays USD-authoritative (KYC/withdrawal limits are USD) — convert for display only, never for limit math. Stale FX handling.",
+          "approach": "Add an FX rate source (CoinGecko vs_currency or a tiny rates fetch) and a single display-conversion helper applied at render; keep all backend/ledger math in USD. Reuses settings.currency and lib/format.ts.",
+          "dependsOn": []
+        },
+        {
+          "feature": "Referral & rewards program (real points/attribution)",
+          "value": "Rewards + the profile referral card are fully fabricated (REFERRAL_CODE 'LAYLA-NUQD', static tasks, '12 referrals'). A real referral code + signup attribution + points ledger replaces the most obviously fake screen; reward payouts can post ledger credits under simulated custody.",
+          "backendFiles": [
+            "src/app/sql/00X_rewards.sql (NEW: referral_codes(user_id, code), referrals(referrer, referee, at), points_ledger(user_id, delta, reason, at))",
+            "src/app/nuqdApp.ts (generate code on register; attribute on signup; award points on task events)",
+            "src/app/server.ts (/api/me/rewards, referral apply on register)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiRewards)",
+            "app/(stack)/rewards/page.tsx:10-24 (real code/tasks/points)",
+            "app/(app)/profile/page.tsx:23,75-119 (real referral code + counts, real loyalty tier from a fee-tier model)",
+            "components/top-bar.tsx (drive unread dot from me.notifications.unread, not always-on)"
+          ],
+          "effort": "M",
+          "risk": "Points-to-value payouts must post through the ledger from a funded promo reserve; avoid implying guaranteed rewards. Referral attribution needs a code param on register.",
+          "approach": "Add referral_codes/referrals/points_ledger + generate-on-register and attribute-on-signup, expose /api/me/rewards, and drive the loyalty tier from real account data. Also fix the TopBar unread dot to read me.notifications.unread. Reuses register() and the ledger for payouts.",
+          "dependsOn": [
+            "Real identity from session (name/email) across app"
+          ]
+        },
+        {
+          "feature": "Limit orders",
+          "value": "Only immediate market swaps exist. Resting buy/sell orders that execute when price crosses a target is a real trading feature; feasible on this stack via the existing available→locked hold + a matcher on the live price feed.",
+          "backendFiles": [
+            "src/app/sql/00X_limit_orders.sql (NEW: limit_orders(user_id, side, asset, target_price, amount, status))",
+            "src/app/nuqdApp.ts (place: hold funds available→locked; matcher watches live price and executes app.swap when crossed; cancel: release)",
+            "src/app/server.ts (/api/me/orders CRUD)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiOrders)",
+            "app/(app)/trade/page.tsx (Limit tab)",
+            "app/(stack)/activity/page.tsx or orders screen (open/filled/cancelled)"
+          ],
+          "effort": "L",
+          "risk": "Heavier than market: needs a reliable matcher loop, fund-locking correctness, partial-fill policy, and cancel races. Build after price-alerts/recurring establish the poll+scheduler patterns.",
+          "approach": "Reuse the existing available↔locked mechanism to hold funds, a price-watch matcher (same poll used by price alerts) to trigger app.swap on cross, and CRUD routes. Reuses swap() + the alert evaluator loop.",
+          "dependsOn": [
+            "Price alerts (rules + evaluator + notifications)",
+            "Recurring buys / DCA (auto-invest)"
+          ]
+        },
+        {
+          "feature": "Passkey / WebAuthn biometric unlock",
+          "value": "The 'Biometric unlock' toggle has no cryptographic backing. Real WebAuthn/passkey registration + assertion gives genuine device biometric step-up, complementing TOTP. App-tier, no gated infra.",
+          "backendFiles": [
+            "src/app/sql/00X_webauthn.sql (NEW: webauthn_credentials(user_id, credential_id, public_key, counter))",
+            "src/app/auth.ts (registration + assertion verify)",
+            "src/app/server.ts (/api/me/webauthn/register, /assert)"
+          ],
+          "frontendFiles": [
+            "lib/client.ts (apiWebauthnRegister/Assert)",
+            "app/(app)/profile/page.tsx:130 (real passkey enroll)",
+            "unlock/step-up flow"
+          ],
+          "effort": "M",
+          "risk": "WebAuthn ceremony (challenge, attestation/assertion verification) is fiddly; needs a verify lib. Provide fallback (password/TOTP) to avoid lockout. Static-export app must call the backend for challenges.",
+          "approach": "Add WebAuthn registration/assertion with server-side credential storage and verify in auth.ts, gating unlock/step-up. Reuses auth.ts session issuance.",
+          "dependsOn": [
+            "2FA / TOTP with recovery codes"
+          ]
+        },
+        {
+          "feature": "Notification producers + relative timestamps + prune dead mock constants",
+          "value": "Real notifications only cover deposit/withdraw/swap/kyc; the app's 'price'/'reward'/'product' kinds are never produced, and real items show raw 'YYYY-MM-DD HH24:MI' as the 'ago' string. Adding producers (price via the alerts item, product news) and relative formatting, plus pruning shipped dead mock constants (DEMO_SEED seed phrase, unused CONTACTS/PERPS), tidies the last cosmetic gaps.",
+          "backendFiles": [
+            "src/app/nuqdApp.ts notify() (product/announcement producer; price handled by the alerts item)"
+          ],
+          "frontendFiles": [
+            "app/(stack)/notifications/page.tsx:29-54 (relative timestamps; drop the 5-item mock SEED)",
+            "lib/mock-data.ts:95-103,178-181 (remove DEMO_SEED 12-word phrase, unused PERPS/CONTACTS)",
+            "app/(stack)/receive/page.tsx (ensure mock-only MY_ADDRESS never renders in real mode)"
+          ],
+          "effort": "S",
+          "risk": "Low. Just ensure mock fixtures only render when !isReal(); removing DEMO_SEED (an unused seed phrase in the bundle) is strictly good hygiene.",
+          "approach": "Add relative-time formatting to the notifications list, remove the mock SEED in real mode, add a product/announcement notify() producer, and delete the dead DEMO_SEED/PERPS/CONTACTS constants. Price-alert notifications come from the alerts item.",
+          "dependsOn": [
+            "Price alerts (rules + evaluator + notifications)"
+          ]
+        }
+      ],
+      "summary": "\"Fully real + advanced\" for NUQD means: every screen reflects the real custodial ledger and the user's real KYC/session state, all money math and status come from the backend (not client-side cosmetics), the app updates live, and the few genuinely mock features (Earn, portfolio-history chart, cost-basis P&L, price alerts, in-app KYC, 2FA) get scoped backend additions — all under the hard constraint that custody stays simulated/testnet-only with no mainnet funds and no guaranteed-yield language. Recommended build order: (1) cheap high-impact WIRE-UPS of capabilities the backend already has but the app ignores — SSE real-time, real quote+slippage in Trade, support ticketing, real session identity, real KYC tier + gate, scannable QR, CSV export, live price refresh, withdrawal-status timeline, change-password; these deliver the biggest 'this is real' jump for days of work, not weeks. (2) SCOPED BACKEND ADDITIONS that remove the remaining fabrications — portfolio snapshots (real chart), cost-basis (real P&L), price alerts, KYC tier limits, in-app KYC submission, 2FA/TOTP, session management, address-book cooling-off. (3) LARGER features that round out a wealth app — recurring buys, real testnet deposits, simulated Earn accrual, multi-currency, referral/rewards, limit orders, passkeys. Order within each tier is by value/effort with dependencies first (SSE underpins support/alerts/withdrawal-status; KYC-surface precedes KYC-limits/submission; TOTP precedes passkeys). EXPLICITLY DEFERRED as needs-infra (excluded, keep as waitlist/coming-soon): the NUQD Card program (needs a BIN sponsor/issuer-processor + PCI + licence) and the fiat BHD on/off-ramp (needs a licensed PSP/bank + CBB approval) — the in-scope funding paths are simulated 'add test funds' now and real testnet crypto deposits later; and live third-party IDV vendors (Onfido/Jumio) behind the in-app KYC flow (build the flow + provider seam now, integrate the vendor when licensed).\""
+    }
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Audit"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Design"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "audit:app-mocks",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "a7753e023ecd509a4",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1783782603776,
+      "queuedAt": 1783782602179,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "NUQD is a GCC/Bahrain custodial crypto \"Digital Wealth\" super-app (competitor to Binance/Nexo/Crypto.com).\nTwo codebases on this machine:\n- FRONTEND: C:\\Users\\DELL\\Desktop\\nuqd-app — Next.js 14 static-export app (mobile-first). Screens funnel through ~11 functions in lib/api.ts via the useAsync hook. lib/client.ts is a NEW real backend client (Bearer token in localStorage). config.apiBaseUrl (NEXT…",
+      "lastProgressAt": 1783782888263,
+      "tokens": 175680,
+      "toolCalls": 44,
+      "durationMs": 284484,
+      "resultPreview": "{\"items\":[{\"area\":\"Portfolio chart (Home + Wallet)\",\"file\":\"lib/api.ts:129-132 (+ lib/mock-data.ts:79-86 PORTFOLIO_SERIES)\",\"currentState\":\"getPortfolio() returns a REAL end-total but a fabricated curve: it takes the seeded mock series PORTFOLIO_SERIES[range] and rescales it so only the last point equals the real total. Every historical point on the Home/Wallet line chart is invented noise; the 1H…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "audit:backend",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "af27111c54a46960d",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1783782604302,
+      "queuedAt": 1783782602180,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "NUQD is a GCC/Bahrain custodial crypto \"Digital Wealth\" super-app (competitor to Binance/Nexo/Crypto.com).\nTwo codebases on this machine:\n- FRONTEND: C:\\Users\\DELL\\Desktop\\nuqd-app — Next.js 14 static-export app (mobile-first). Screens funnel through ~11 functions in lib/api.ts via the useAsync hook. lib/client.ts is a NEW real backend client (Bearer token in localStorage). config.apiBaseUrl (NEXT…",
+      "lastProgressAt": 1783782800304,
+      "tokens": 164242,
+      "toolCalls": 28,
+      "durationMs": 196002,
+      "resultPreview": "{\"unusedEndpoints\":[{\"endpoint\":\"GET /api/me/events (SSE, server.ts:232)\",\"capability\":\"Server-Sent Events stream scoped to the logged-in customer (openStream/broadcast in server.ts:129-149). The backend already pushes an event whenever that customer's state changes: deposit credited (nuqdApp.simulateDeposit + live chain watcher), swap complete, withdrawal approved/settled, KYC/freeze change, new …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "audit:features",
+      "phaseIndex": 1,
+      "phaseTitle": "Audit",
+      "agentId": "a97bd1a6a0a0fbf19",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1783782604060,
+      "queuedAt": 1783782602181,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "NUQD is a GCC/Bahrain custodial crypto \"Digital Wealth\" super-app (competitor to Binance/Nexo/Crypto.com).\nTwo codebases on this machine:\n- FRONTEND: C:\\Users\\DELL\\Desktop\\nuqd-app — Next.js 14 static-export app (mobile-first). Screens funnel through ~11 functions in lib/api.ts via the useAsync hook. lib/client.ts is a NEW real backend client (Bearer token in localStorage). config.apiBaseUrl (NEXT…",
+      "lastProgressAt": 1783782899033,
+      "tokens": 149881,
+      "toolCalls": 25,
+      "durationMs": 294973,
+      "resultPreview": "{\"features\":[{\"name\":\"Real-time balance & order-status push (SSE)\",\"description\":\"Push balance/withdrawal/swap/deposit state changes to the app instantly instead of the current 6s polling cache, so the wallet and activity update live as staff act or chain events land.\",\"feasibility\":\"wire-existing\",\"priority\":\"P1\",\"inScope\":true,\"reason\":\"Backend already implements a per-customer SSE stream at GET…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "design:plan",
+      "phaseIndex": 2,
+      "phaseTitle": "Design",
+      "agentId": "ac13ea0828cfc96ee",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1783782904780,
+      "queuedAt": 1783782902904,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "\"Fully real + advanced\" for NUQD means: every screen reflec…",
+      "promptPreview": "NUQD is a GCC/Bahrain custodial crypto \"Digital Wealth\" super-app (competitor to Binance/Nexo/Crypto.com).\nTwo codebases on this machine:\n- FRONTEND: C:\\Users\\DELL\\Desktop\\nuqd-app — Next.js 14 static-export app (mobile-first). Screens funnel through ~11 functions in lib/api.ts via the useAsync hook. lib/client.ts is a NEW real backend client (Bearer token in localStorage). config.apiBaseUrl (NEXT…",
+      "lastProgressAt": 1783783154228,
+      "tokens": 89894,
+      "toolCalls": 8,
+      "durationMs": 249448,
+      "resultPreview": "{\"plan\":[{\"feature\":\"Real-time SSE stream (live balances / activity / notifications)\",\"value\":\"Foundational: makes every other screen update instantly when a deposit confirms, a swap posts, or staff settles/rejects a withdrawal — the single biggest 'this feels real' upgrade, and a prerequisite for price-alert and withdrawal-status UX feeling live. Backend already broadcasts on every state change; …"
+    }
+  ],
+  "totalTokens": 579697,
+  "totalToolCalls": 105
+}

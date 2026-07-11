@@ -12,7 +12,8 @@ import { StatPair } from "@/components/primitives";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { useAsync } from "@/lib/use-async";
-import { getHoldings, placeOrder } from "@/lib/api";
+import { getHoldings, placeOrder, isReal } from "@/lib/api";
+import { KycGate } from "@/components/kyc-gate";
 import { CONTACTS } from "@/lib/mock-data";
 import { formatAmount, formatCurrency, shortAddress } from "@/lib/format";
 
@@ -30,6 +31,7 @@ export default function SendScreen() {
   const [review, setReview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   // Default to the largest holding once loaded.
   const asset = assets?.find((a) => a.id === assetId) ?? assets?.[0];
@@ -43,9 +45,12 @@ export default function SendScreen() {
   async function confirm() {
     if (!asset) return;
     setSubmitting(true);
+    setSendError(null);
     try {
-      await placeOrder({ type: "send", assetId: asset.id, amountUsd: usd });
+      await placeOrder({ type: "send", assetId: asset.id, amountUsd: usd, amountUnits: amt, destination: recipient.trim() });
       setDone(true);
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "Send failed — please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -54,6 +59,7 @@ export default function SendScreen() {
   return (
     <>
       <PageHeader title="Send" />
+      <KycGate action="withdraw">
       <div className="flex flex-1 flex-col px-4 pb-8 pt-4">
         {error ? (
           <ErrorState message={error} onRetry={reload} />
@@ -245,12 +251,14 @@ export default function SendScreen() {
             <Button fullWidth size="lg" loading={submitting} onClick={confirm}>
               Confirm & send
             </Button>
+            {sendError && <p className="mb-2 text-center text-sm font-semibold text-neg" role="alert">{sendError}</p>}
             <p className="mt-2 text-center text-xs text-faint">
-              Transfers are irreversible. Demo — no real funds move.
+              {isReal() ? "Withdrawals are irreversible once settled. Simulated custody." : "Transfers are irreversible. Demo — no real funds move."}
             </p>
           </>
         )}
       </Sheet>
+      </KycGate>
     </>
   );
 }

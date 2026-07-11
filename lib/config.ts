@@ -5,6 +5,12 @@
 export const config = {
   appName: process.env.NEXT_PUBLIC_APP_NAME ?? "NUQD",
   baseCurrency: process.env.NEXT_PUBLIC_BASE_CURRENCY ?? "USD",
+  /**
+   * Base URL of the real NUQD custodial backend (nuqd-core). When set, the app
+   * runs on real accounts/balances/trades; when empty, it uses the mock dataset
+   * (so the offline/static build and the test suite still work unchanged).
+   */
+  apiBaseUrl: (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, ""),
   /** Use live CoinGecko market data (falls back to mock on any failure). */
   useRealData: (process.env.NEXT_PUBLIC_USE_REAL_DATA ?? "true") !== "false",
   mock: {

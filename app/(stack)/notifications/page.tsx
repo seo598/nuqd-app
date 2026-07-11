@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowDownLeft, Bell, Gift, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/states";
 import { cn } from "@/lib/cn";
+import { isReal, apiNotifications, apiMarkNotificationsRead } from "@/lib/api";
 
 type Kind = "price" | "security" | "product" | "transaction" | "reward";
 
@@ -19,6 +20,12 @@ const META: Record<Kind, { Icon: React.ElementType; tint: boolean }> = {
   reward: { Icon: Gift, tint: true },
 };
 
+// Backend notification kinds → this screen's visual kind.
+const KIND_MAP: Record<string, Kind> = {
+  deposit: "transaction", withdrawal: "transaction", swap: "transaction",
+  kyc: "security", freeze: "security",
+};
+
 const SEED: Notif[] = [
   { id: "n1", kind: "price", title: "Bitcoin is up 5% today", body: "BTC crossed your watchlist alert. Tap to view the chart.", ago: "12 min ago", unread: true },
   { id: "n2", kind: "reward", title: "You earned 50 reward points", body: "Thanks for completing your profile. Keep going to unlock more.", ago: "1 hr ago", unread: true },
@@ -28,8 +35,32 @@ const SEED: Notif[] = [
 ];
 
 export default function Notifications() {
-  const [items, setItems] = useState(SEED);
+  const [items, setItems] = useState<Notif[]>(isReal() ? [] : SEED);
   const unread = items.filter((n) => n.unread).length;
+
+  useEffect(() => {
+    if (!isReal()) return;
+    let alive = true;
+    apiNotifications()
+      .then((d) => {
+        if (!alive) return;
+        setItems(d.items.map((n) => ({
+          id: n.id,
+          kind: KIND_MAP[n.kind] ?? "product",
+          title: n.title,
+          body: n.body ?? "",
+          ago: n.at,
+          unread: !n.read,
+        })));
+      })
+      .catch(() => { /* keep empty */ });
+    return () => { alive = false; };
+  }, []);
+
+  function markAll() {
+    setItems((l) => l.map((n) => ({ ...n, unread: false })));
+    if (isReal()) apiMarkNotificationsRead().catch(() => {});
+  }
 
   return (
     <>
@@ -38,7 +69,7 @@ export default function Notifications() {
         right={
           unread > 0 ? (
             <button
-              onClick={() => setItems((l) => l.map((n) => ({ ...n, unread: false })))}
+              onClick={markAll}
               className="whitespace-nowrap text-xs font-semibold text-pos"
             >
               Mark all

@@ -6,6 +6,7 @@ import { ArrowRight, Sparkles, ShieldCheck, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NuqdLogo } from "@/components/brand";
 import { useUIStore } from "@/lib/store";
+import { isReal, apiRegister, apiLogin } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 type Step = "slides" | "auth";
@@ -19,7 +20,7 @@ const SLIDES = [
 export default function Onboarding() {
   const router = useRouter();
   const completeWallet = useUIStore((s) => s.completeWallet);
-  const signIn = useUIStore((s) => s.signIn);
+  const setSession = useUIStore((s) => s.setSession);
 
   const [step, setStep] = useState<Step>("slides");
   const [slide, setSlide] = useState(0);
@@ -66,42 +67,73 @@ export default function Onboarding() {
     );
   }
 
-  // ── Auth (custodial account — no seed phrase needed) ──
+  return <AuthStep onDone={() => router.replace("/home")} completeWallet={completeWallet} setSession={setSession} />;
+}
+
+function AuthStep({
+  onDone,
+  completeWallet,
+  setSession,
+}: {
+  onDone: () => void;
+  completeWallet: () => void;
+  setSession: (u: { id: string; email: string }) => void;
+}) {
+  const [mode, setMode] = useState<"create" | "signin">("create");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!isReal()) {
+      // No backend configured → demo custodial account, provisioned instantly.
+      completeWallet();
+      onDone();
+      return;
+    }
+    setBusy(true);
+    try {
+      const actor = mode === "create" ? await apiRegister(email.trim(), password, name.trim() || undefined) : await apiLogin(email.trim(), password);
+      setSession({ id: actor.id, email: actor.email });
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col p-6">
       <div className="flex justify-center py-6">
         <NuqdLogo size={30} />
       </div>
       <div className="flex flex-1 flex-col justify-center">
-        <h1 className="font-display text-2xl font-bold">Create your account</h1>
-        <p className="mt-1 text-muted">Start in seconds. No paperwork.</p>
-        <form
-          className="mt-6 space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            // Custodial NUQD Account — provisioned instantly, no recovery phrase.
-            completeWallet();
-            router.replace("/home");
-          }}
-        >
-          <Field label="Full name" type="text" placeholder="Layla Karim" autoComplete="name" />
-          <Field label="Email" type="email" placeholder="you@email.com" autoComplete="email" />
-          <Field label="Password" type="password" placeholder="Create a password" autoComplete="new-password" />
-          <Button type="submit" fullWidth size="lg" className="!mt-5">
-            Create account
+        <h1 className="font-display text-2xl font-bold">{mode === "create" ? "Create your account" : "Welcome back"}</h1>
+        <p className="mt-1 text-muted">{mode === "create" ? "Start in seconds. No paperwork." : "Sign in to your NUQD Account."}</p>
+        <form className="mt-6 space-y-3" onSubmit={submit}>
+          {mode === "create" && (
+            <Field label="Full name" type="text" placeholder="Layla Karim" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required={false} />
+          )}
+          <Field label="Email" type="email" placeholder="you@email.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Field label="Password" type="password" placeholder={mode === "create" ? "At least 8 characters" : "Your password"} autoComplete={mode === "create" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} />
+          {error && <p className="text-sm font-semibold text-neg" role="alert">{error}</p>}
+          <Button type="submit" fullWidth size="lg" className="!mt-5" loading={busy}>
+            {mode === "create" ? "Create account" : "Sign in"}
           </Button>
         </form>
         <button
-          onClick={() => {
-            signIn();
-            router.replace("/home");
-          }}
+          onClick={() => { setError(null); setMode((m) => (m === "create" ? "signin" : "create")); }}
           className="mt-4 w-full text-center text-sm font-semibold text-pos"
         >
-          Sign in instead
+          {mode === "create" ? "Sign in instead" : "Create an account"}
         </button>
         <p className="mt-6 text-center text-xs text-faint">
-          By continuing you agree to the Terms &amp; Privacy Policy. This is a demo — no real funds.
+          By continuing you agree to the Terms &amp; Privacy Policy.{isReal() ? " Simulated custody — no real funds move." : " Demo — no real funds."}
         </p>
       </div>
     </div>

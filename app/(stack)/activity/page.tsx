@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
@@ -47,9 +48,29 @@ export default function ActivityScreen() {
 
   const detailAsset = detail ? assetById(detail.assetId) : undefined;
 
+  // Export the currently-filtered transactions as a CSV statement (client-side).
+  function exportCsv() {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Date", "Type", "Asset", "Amount", "USD", "Status", "Counterparty", "Reference"];
+    const lines = rows.map((t) => [t.date, t.type, (assetById(t.assetId)?.symbol ?? t.assetId), t.amount, t.usd, t.status, t.counterparty ?? "", t.id].map(esc).join(","));
+    const csv = [header.map(esc).join(","), ...lines].join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `nuqd-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   return (
     <>
-      <PageHeader title="Activity" />
+      <PageHeader
+        title="Activity"
+        right={rows.length > 0 ? (
+          <button onClick={exportCsv} aria-label="Export CSV" className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-pos">
+            <Download size={15} /> Export
+          </button>
+        ) : undefined}
+      />
       <div className="px-4 pb-8 pt-3">
         {/* Type filter — horizontally scrollable chips */}
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">

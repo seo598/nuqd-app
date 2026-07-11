@@ -21,6 +21,10 @@ import {
 } from "./mock-data";
 import { CG_IDS, cgChart, cgMarkets, cgTopCoins, downsample } from "./coingecko";
 import { fetchCryptoNews } from "./news";
+import {
+  isReal, apiMe, apiSwap, apiWithdraw, apiQuote,
+  toApp, toCore, tradable, CASH,
+} from "./client";
 import type {
   Asset,
   EarnAsset,
@@ -69,8 +73,8 @@ async function fetchRealAssets(): Promise<Asset[]> {
   });
 }
 
-/** Real (or mock) asset rows, cached ~30s and shared across screens. */
-async function loadAssets(): Promise<Asset[]> {
+/** Live-priced asset rows (mock holdings), cached ~30s and shared across screens. */
+async function loadPricedAssets(): Promise<Asset[]> {
   if (!config.useRealData) return ASSETS.map((a) => ({ ...a }));
   if (assetsCache && Date.now() - assetsCache.at < 30_000) return assetsCache.data;
   if (assetsInflight) return assetsInflight;
@@ -84,6 +88,30 @@ async function loadAssets(): Promise<Asset[]> {
       assetsInflight = null;
     });
   return assetsInflight;
+}
+
+/**
+ * Asset rows the app renders. Prices are live (CoinGecko); in real mode the
+ * `holdings` are the user's ACTUAL ledger balances from the backend (valued at
+ * the live price), so the whole portfolio/wallet/trade UI reflects real funds.
+ * In mock mode it's the seeded holdings, unchanged.
+ */
+async function loadAssets(): Promise<Asset[]> {
+  const priced = await loadPricedAssets();
+  if (!isReal()) return priced;
+  try {
+    const me = await apiMe();
+    const bal = me.balances ?? {};
+    return priced.map((a) => {
+      const amt = Number(bal[toCore(a.id)] ?? 0);
+      // No cost-basis tracking server-side yet → anchor avgCost to the live price
+      // so P&L reads ~0 rather than showing a fabricated gain.
+      return { ...a, holdings: amt, avgCost: amt > 0 ? a.price : a.avgCost };
+    });
+  } catch {
+    // Backend unreachable: show real prices with zero holdings rather than mock funds.
+    return priced.map((a) => ({ ...a, holdings: 0 }));
+  }
 }
 
 // ── Public API ─────────────────────────────────────────────────────
@@ -155,11 +183,31 @@ export async function getAssetSeries(id: string, range: Range): Promise<number[]
   }
 }
 
+async function realActivity(): Promise<Transaction[]> {
+  const [me, assets] = await Promise.all([apiMe(), loadPricedAssets()]);
+  const priceOf = (appId: string) => assets.find((a) => a.id === appId)?.price ?? 0;
+  const iso = (at: string) => new Date(at.replace(" ", "T")).toISOString();
+  const rows: Transaction[] = [];
+  for (const d of me.deposits ?? []) {
+    const id = toApp(d.asset_id), amt = Number(d.amount);
+    rows.push({ id: `d_${d.asset_id}_${d.at}`, type: "receive", assetId: id, amount: amt, usd: amt * priceOf(id), date: iso(d.at), status: d.status === "credited" || d.status === "confirmed" ? "completed" : "pending" });
+  }
+  for (const w of me.withdrawals ?? []) {
+    const id = toApp(w.asset_id), amt = Number(w.amount);
+    rows.push({ id: `w_${w.id}`, type: "send", assetId: id, amount: amt, usd: amt * priceOf(id), date: iso(w.at), status: w.status === "settled" ? "completed" : w.status === "rejected" || w.status === "failed" ? "failed" : "pending", counterparty: w.destination });
+  }
+  for (const s of me.swaps ?? []) {
+    const from = toApp(s.from_asset), to = toApp(s.to_asset), amt = Number(s.fa);
+    rows.push({ id: `s_${s.from_asset}_${s.to_asset}_${s.at}`, type: "swap", assetId: from, toAssetId: to, amount: amt, usd: amt * priceOf(from), date: iso(s.at), status: "completed" });
+  }
+  return rows.sort((a, b) => +new Date(b.date) - +new Date(a.date));
+}
+
 export async function getActivity(filter?: {
   type?: TxType | "all";
   assetId?: string | "all";
 }): Promise<Transaction[]> {
-  let rows = [...TRANSACTIONS];
+  let rows = isReal() ? await realActivity() : [...TRANSACTIONS];
   if (filter?.type && filter.type !== "all") {
     rows = rows.filter((t) => t.type === filter.type);
   }
@@ -167,7 +215,7 @@ export async function getActivity(filter?: {
     rows = rows.filter((t) => t.assetId === filter.assetId);
   }
   rows.sort((a, b) => +new Date(b.date) - +new Date(a.date));
-  return delay(rows);
+  return isReal() ? rows : delay(rows);
 }
 
 export async function getAssetActivity(id: string): Promise<Transaction[]> {
@@ -294,15 +342,73 @@ export async function getNews(): Promise<NewsItem[]> {
   return newsInflight;
 }
 
-/** Simulate placing a trade — priced at the live rate, returns a receipt. */
-export async function placeOrder(input: {
-  type: TxType;
-  assetId: string;
+export interface OrderInput {
+  type: TxType;         // buy | sell | swap | send
+  assetId: string;      // primary asset (app id)
   amountUsd: number;
-}): Promise<Transaction> {
+  amountUnits?: number; // units of the asset being spent/sent (sell/swap/send)
+  toAssetId?: string;   // swap destination (app id)
+  destination?: string; // send recipient address
+  minToAmount?: number; // slippage floor (to-asset units) for buy/sell/swap
+}
+
+export interface OrderQuote { toAmount: number; rate: number; feeUsd: number; usdValue: number; receiveAsset: string }
+
+/** Map an order to its from/to legs (shared by quoteOrder + placeOrder). */
+function swapLegs(input: OrderInput, price: number) {
+  const units = input.amountUnits ?? (price ? input.amountUsd / price : 0);
+  if (input.type === "buy") return { fromCore: CASH, toCoreId: toCore(input.assetId), fromAmount: String(input.amountUsd), receiveAsset: input.assetId };
+  if (input.type === "sell") return { fromCore: toCore(input.assetId), toCoreId: CASH, fromAmount: String(units), receiveAsset: "usdc" };
+  const toId = input.toAssetId ?? input.assetId;
+  return { fromCore: toCore(input.assetId), toCoreId: toCore(toId), fromAmount: String(units), receiveAsset: toId };
+}
+
+/** Real quote for a buy/sell/swap (null in mock mode or for an untradable pair). */
+export async function quoteOrder(input: OrderInput): Promise<OrderQuote | null> {
+  if (!isReal() || input.type === "send") return null;
+  const assets = await loadAssets();
+  const a = assets.find((x) => x.id === input.assetId) ?? assetById(input.assetId);
+  if (!a) return null;
+  const toId = input.type === "swap" ? (input.toAssetId ?? input.assetId) : input.assetId;
+  if (!tradable(input.assetId) || !tradable(toId)) return null;
+  const { fromCore, toCoreId, fromAmount, receiveAsset } = swapLegs(input, a.price);
+  if (!(Number(fromAmount) > 0)) return null;
+  try {
+    const q = await apiQuote(fromCore, toCoreId, fromAmount);
+    const recvPrice = assets.find((x) => x.id === receiveAsset)?.price ?? 0;
+    return { toAmount: Number(q.toAmount), rate: Number(q.rate), feeUsd: Number(q.fee) * recvPrice, usdValue: Number(q.usdValue), receiveAsset };
+  } catch { return null; }
+}
+
+/**
+ * Place an order. In real mode it hits the custodial ledger:
+ *   buy  → swap USDT→asset   ·  sell → swap asset→USDT
+ *   swap → swap asset→asset  ·  send → allow-list + withdraw
+ * In mock mode it returns a fabricated receipt (no persistence), as before.
+ */
+export async function placeOrder(input: OrderInput): Promise<Transaction> {
   const assets = await loadAssets();
   const a = assets.find((x) => x.id === input.assetId) ?? assetById(input.assetId);
   if (!a) throw new Error("Unknown asset");
+
+  if (isReal()) {
+    const units = input.amountUnits ?? (a.price ? input.amountUsd / a.price : 0);
+    if (input.type === "send") {
+      if (!input.destination) throw new Error("Recipient address required");
+      if (!tradable(input.assetId)) throw new Error(`${a.symbol} withdrawals aren't supported yet`);
+      await apiWithdraw(toCore(input.assetId), String(units), input.destination);
+      return { id: `w_${Date.now()}`, type: "send", assetId: input.assetId, amount: units, usd: input.amountUsd, date: new Date().toISOString(), status: "pending", counterparty: input.destination };
+    }
+    // buy / sell / swap → a ledger swap
+    const toId = input.type === "swap" ? (input.toAssetId ?? input.assetId) : input.assetId;
+    if (!tradable(input.assetId) || !tradable(toId)) throw new Error("That pair isn't tradable yet");
+    if (input.type === "swap" && toId === input.assetId) throw new Error("Choose two different assets");
+    const { fromCore, toCoreId, fromAmount, receiveAsset } = swapLegs(input, a.price);
+    const r = await apiSwap(fromCore, toCoreId, fromAmount, input.minToAmount != null ? String(input.minToAmount) : undefined);
+    return { id: r.swapId, type: input.type, assetId: receiveAsset, amount: Number(r.toAmount), usd: input.amountUsd, date: new Date().toISOString(), status: "completed" };
+  }
+
+  // ── mock (no backend) ──
   return {
     id: `t_${Math.floor(Math.random() * 1e9).toString(36)}`,
     type: input.type,
@@ -313,3 +419,7 @@ export async function placeOrder(input: {
     status: "completed",
   };
 }
+
+// ── auth + funding passthroughs (used by onboarding, receive, notifications) ──
+export { isReal, apiDeposit } from "./client";
+export { apiRegister, apiLogin, apiLogout, apiSession, apiNotifications, apiMarkNotificationsRead, apiChangePassword, apiUpdateProfile, toCore } from "./client";

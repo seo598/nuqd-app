@@ -16,6 +16,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { useAsync } from "@/lib/use-async";
 import { getPortfolio } from "@/lib/api";
+import { useMe, tierLabel, isVerified } from "@/lib/use-me";
 import { formatCompactCurrency, formatCurrency } from "@/lib/format";
 import { useUIStore, type ThemeMode } from "@/lib/store";
 import { cn } from "@/lib/cn";
@@ -33,9 +34,15 @@ function tierFor(value: number) {
 export default function ProfileScreen() {
   const router = useRouter();
   const { settings, updateSettings, theme, setTheme, signOut } = useUIStore();
+  const storeUser = useUIStore((s) => s.user);
+  const { me } = useMe();
   const portfolio = useAsync(() => getPortfolio("1M"), []);
   const value = portfolio.data?.totalUsd ?? 0;
   const tier = tierFor(value);
+  const name = me?.profile.name || storeUser?.email?.split("@")[0] || "Your account";
+  const email = me?.profile.email || storeUser?.email || "—";
+  const verified = isVerified(me);
+  const memberSince = me?.profile.joined ? me.profile.joined.slice(0, 4) : "2024";
   const progress = tier.next
     ? Math.min(100, ((value - tier.floor) / (tier.ceil - tier.floor)) * 100)
     : 100;
@@ -61,15 +68,15 @@ export default function ProfileScreen() {
       {/* Identity + tier */}
       <Card className="overflow-hidden p-0">
         <div className="flex items-center gap-3 p-4">
-          <Avatar name="Layla Karim" size={56} />
+          <Avatar name={name} size={56} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <p className="truncate font-bold">Layla Karim</p>
-              <BadgeCheck size={16} className="shrink-0 text-pos" aria-label="Verified" />
+              <p className="truncate font-bold">{name}</p>
+              {verified && <BadgeCheck size={16} className="shrink-0 text-pos" aria-label="Verified" />}
             </div>
-            <p className="truncate text-sm text-muted">layla@email.com</p>
+            <p className="truncate text-sm text-muted">{email}</p>
           </div>
-          <button className="rounded-pill bg-surface-2 px-3 py-1.5 text-sm font-semibold">Edit</button>
+          <Link href="/settings/personal" className="rounded-pill bg-surface-2 px-3 py-1.5 text-sm font-semibold">Edit</Link>
         </div>
 
         {/* Tier progress */}
@@ -94,8 +101,8 @@ export default function ProfileScreen() {
       {/* Quick stats */}
       <div className="mt-3 grid grid-cols-3 gap-3">
         <Stat label="Portfolio" value={value ? formatCompactCurrency(value) : "—"} />
-        <Stat label="Member since" value="2024" />
-        <Stat label="Referrals" value="12" />
+        <Stat label="Member since" value={memberSince} />
+        <Stat label="Status" value={verified ? "Verified" : "Unverified"} />
       </div>
 
       {/* Referral */}
@@ -121,7 +128,7 @@ export default function ProfileScreen() {
       {/* Account */}
       <Group title="Account">
         <RowLink icon={<UserRound size={18} />} label="Personal details" desc="Name, email, phone" href="/settings/personal" />
-        <RowLink icon={<ShieldCheck size={18} />} label="Identity verification" desc="Verified" descAccent href="/settings/identity" />
+        <RowLink icon={<ShieldCheck size={18} />} label="Identity verification" desc={me ? tierLabel(me.kyc.kyc_tier) : "Verified"} descAccent={verified} href="/settings/identity" />
         <RowLink icon={<CreditCard size={18} />} label="Payment methods" desc="Cards & bank accounts" href="/settings/payment" />
       </Group>
 

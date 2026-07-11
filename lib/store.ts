@@ -8,8 +8,11 @@
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { setToken } from "./client";
 
 export type ThemeMode = "light" | "dark" | "system";
+
+export interface SessionUser { id: string; email: string }
 
 export interface Settings {
   biometrics: boolean;
@@ -22,13 +25,16 @@ export interface Settings {
 }
 
 interface UIState {
-  // ── session (mock auth) ──
+  // ── session ──
   signedIn: boolean;
   walletCreated: boolean;
   seedBackedUp: boolean;
+  user: SessionUser | null;
   signIn: () => void;
   signOut: () => void;
   completeWallet: () => void;
+  /** Establish a real backend session (token already stored by the client). */
+  setSession: (user: SessionUser) => void;
 
   // ── theme ──
   theme: ThemeMode;
@@ -49,9 +55,11 @@ export const useUIStore = create<UIState>()(
       signedIn: false,
       walletCreated: false,
       seedBackedUp: false,
+      user: null,
       signIn: () => set({ signedIn: true }),
-      signOut: () => set({ signedIn: false }),
+      signOut: () => { setToken(null); set({ signedIn: false, user: null }); },
       completeWallet: () => set({ walletCreated: true, seedBackedUp: true, signedIn: true }),
+      setSession: (user) => set({ user, signedIn: true, walletCreated: true, seedBackedUp: true }),
 
       theme: "system",
       setTheme: (theme) => set({ theme }),
