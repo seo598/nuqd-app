@@ -10,6 +10,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { LineChart } from "@/components/charts/line-chart";
+import { TradingViewChart } from "@/components/tradingview-chart";
 import { AssetBadge } from "@/components/asset-badge";
 import { StatPair, SectionHeader } from "@/components/primitives";
 import { ActivityRow } from "@/components/activity-row";
@@ -24,6 +25,7 @@ const RANGES: Range[] = ["1H", "1D", "1W", "1M", "1Y", "All"];
 /** Asset detail screen. `id` comes from the route (server) wrapper. */
 export function AssetDetail({ id }: { id: string }) {
   const [range, setRange] = useState<Range>("1W");
+  const [advanced, setAdvanced] = useState(true); // TradingView live chart by default
   const asset = useAsync(() => getAsset(id), [id]);
   const series = useAsync(() => getAssetSeries(id, range), [id, range]);
   const history = useAsync(() => getAssetActivity(id), [id]);
@@ -69,9 +71,19 @@ export function AssetDetail({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* Chart — real price series for the selected range */}
-            <div className="mt-4">
-              {series.data && series.data.length > 1 ? (
+            {/* Chart — TradingView live chart (advanced) or the lightweight series */}
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setAdvanced((v) => !v)}
+                className="rounded-pill bg-surface-2 px-3 py-1 text-xs font-semibold text-muted active:text-text"
+              >
+                {advanced ? "Simple chart" : "⚡ Live chart"}
+              </button>
+            </div>
+            <div className="mt-2">
+              {advanced ? (
+                <TradingViewChart assetId={id} height={320} />
+              ) : series.data && series.data.length > 1 ? (
                 <LineChart data={series.data} />
               ) : a && !series.loading ? (
                 <LineChart data={a.sparkline} />
@@ -79,9 +91,11 @@ export function AssetDetail({ id }: { id: string }) {
                 <Skeleton className="h-[168px] w-full" />
               )}
             </div>
-            <div className="mt-3 flex justify-center">
-              <Segmented options={RANGES} value={range} onChange={setRange} ariaLabel="Chart range" size="sm" />
-            </div>
+            {!advanced && (
+              <div className="mt-3 flex justify-center">
+                <Segmented options={RANGES} value={range} onChange={setRange} ariaLabel="Chart range" size="sm" />
+              </div>
+            )}
 
             {/* Buy / Sell */}
             <div className="mt-5 grid grid-cols-2 gap-3">

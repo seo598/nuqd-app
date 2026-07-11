@@ -29,6 +29,24 @@ function RealReceive() {
   const [amount, setAmount] = useState("");
   const [funding, setFunding] = useState(false);
   const [funded, setFunded] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
+
+  async function applePay() {
+    const usd = prompt("Amount to add in USD via Apple Pay:", "100");
+    if (!usd || !(Number(usd) > 0)) return;
+    setPaying(true);
+    setFunded(null);
+    try {
+      // Production: open Apple Pay via a PaymentRequest against your payment
+      // processor (Stripe/Adyen). Simulated environment: credit the USD as USDT.
+      await apiDeposit("USDT-ETH", String(Number(usd)));
+      setFunded(`Added $${Number(usd).toLocaleString()} (as USDT) via Apple Pay.`);
+    } catch {
+      setFunded("Payment failed — please try again.");
+    } finally {
+      setPaying(false);
+    }
+  }
 
   useEffect(() => {
     apiMe().then((me) => setAddresses(me.addresses ?? {})).catch(() => {});
@@ -99,6 +117,19 @@ function RealReceive() {
             <Button onClick={addFunds} loading={funding} disabled={!(Number(amount) > 0)}>Add</Button>
           </div>
           {funded && <p className="mt-2 text-sm font-semibold text-pos">{funded}</p>}
+        </Card>
+
+        {/* Fiat on-ramp — Apple Pay (simulated; real charging needs a licensed processor). */}
+        <Card className="mt-3 w-full p-4">
+          <p className="text-sm font-semibold">Buy with card</p>
+          <p className="mt-0.5 text-xs text-muted">Fund in USD (credited as USDT). Simulated — real card charging needs a licensed payment processor + CBB approval.</p>
+          <button
+            onClick={applePay}
+            disabled={paying}
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-tile bg-black py-3 text-[15px] font-semibold text-white transition active:opacity-80 disabled:opacity-50"
+          >
+            {paying ? "Processing…" : (<><span className="text-lg leading-none"></span> Pay</>)}
+          </button>
         </Card>
 
         <p className="mt-5 max-w-[320px] text-center text-xs text-faint">
